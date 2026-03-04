@@ -1,8 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import inventoryRoutes from './routes/inventoryRoutes';
 import authRoutes from './routes/authRoutes';
+import maxtronRoutes from './modules/maxtron/routes';
+import keilRoutes from './modules/keil/routes';
 
 dotenv.config();
 
@@ -12,9 +13,12 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/inventory', inventoryRoutes);
+// Main App API Routes
+app.use('/api/auth', authRoutes); // Auth is Global
+
+// Completely Separate Module Sections
+app.use('/api/maxtron', maxtronRoutes);
+app.use('/api/keil', keilRoutes);
 
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'ERP Backend is healthy' });

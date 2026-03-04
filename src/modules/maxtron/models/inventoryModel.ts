@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabase';
+import { supabase } from '../../../config/supabase';
 
 export interface InventoryItem {
     id: string; // Used by Supabase UUID
