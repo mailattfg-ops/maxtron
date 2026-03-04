@@ -99,7 +99,7 @@ async function runMigrations() {
     console.log('4️⃣ Clean up dependencies to apply new structural updates...');
     await client.query(`
       DROP TABLE IF EXISTS users CASCADE;
-      DROP TABLE IF EXISTS user_departments, addresses, employee_qualifications, employee_experiences, employee_certificates, employee_licenses, employee_passports, employee_loans, employee_suspenses, employee_targets, employee_incentive_slabs CASCADE;
+      DROP TABLE IF EXISTS user_departments, addresses, employee_qualifications, employee_experiences, employee_certificates, employee_licenses, employee_passports, employee_loans, employee_suspenses, employee_targets, employee_incentive_slabs, attendance, marketing_visits, customers CASCADE;
     `);
 
     console.log('4.5️⃣ Creating users table (Unified with Employee data)...');
@@ -161,12 +161,31 @@ async function runMigrations() {
     // Companies Table
 
 
-    // Dependencies (Addresses can belong to users or companies)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customers(
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+        customer_name VARCHAR(255) NOT NULL,
+        customer_code VARCHAR(50) NOT NULL,
+        gst_no VARCHAR(100),
+        credit_period INTEGER DEFAULT 0, -- Store as days
+        credit_limit NUMERIC(12, 2) DEFAULT 0,
+        delivery_period VARCHAR(100), -- New Field
+        delivery_mode VARCHAR(100), -- New Field
+        opening_balance NUMERIC(12, 2) DEFAULT 0,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(customer_code, company_id)
+      );
+    `);
+
+    // Dependencies (Addresses can belong to users, companies, or customers)
     await client.query(`
       CREATE TABLE IF NOT EXISTS addresses(
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id UUID REFERENCES users(id) ON DELETE CASCADE,
       company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+      customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
       address_type VARCHAR(50) NOT NULL,
       street VARCHAR(255),
       city VARCHAR(100),
@@ -174,9 +193,10 @@ async function runMigrations() {
       zip_code VARCHAR(20),
       country VARCHAR(100) DEFAULT 'India',
       CHECK(
-        (user_id IS NOT NULL AND company_id IS NULL) OR
-      (user_id IS NULL AND company_id IS NOT NULL)
-    )
+        (user_id IS NOT NULL AND company_id IS NULL AND customer_id IS NULL) OR
+        (user_id IS NULL AND company_id IS NOT NULL AND customer_id IS NULL) OR
+        (user_id IS NULL AND company_id IS NULL AND customer_id IS NOT NULL)
+      )
       );
     `);
 
@@ -266,6 +286,37 @@ async function runMigrations() {
       employee_id UUID REFERENCES users(id) ON DELETE CASCADE,
       suspense_issued NUMERIC(12, 2),
       balance_receivable NUMERIC(12, 2)
+    );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS attendance(
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      employee_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+      date DATE NOT NULL,
+      shift VARCHAR(20) NOT NULL, --DAY, NIGHT, GENERAL
+        clock_in TIME,
+      clock_out TIME,
+      status VARCHAR(20) DEFAULT 'PRESENT',
+      remarks TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS marketing_visits(
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      employee_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+      customer_name VARCHAR(255) NOT NULL,
+      location TEXT,
+      visit_date DATE NOT NULL,
+      time_in TIME,
+      time_out TIME,
+      purpose TEXT,
+      outcome TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     `);
 
