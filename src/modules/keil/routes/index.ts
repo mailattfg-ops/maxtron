@@ -4,7 +4,8 @@ import companyRoutes from '../../maxtron/routes/companyRoutes';
 import attendanceRoutes from '../../maxtron/routes/attendanceRoutes';
 import marketingVisitRoutes from '../../maxtron/routes/marketingVisitRoutes';
 
-import { getUserTypes } from '../../maxtron/controllers/userTypeController';
+import userTypeRoutes from '../../maxtron/routes/userTypeRoutes';
+import permissionRoutes from '../../maxtron/routes/permissionRoutes';
 import { getCategories } from '../../maxtron/controllers/categoryController';
 import { getDepartments } from '../../maxtron/controllers/departmentController';
 
@@ -20,8 +21,9 @@ router.use('/employees', employeeRoutes);
 router.use('/companies', companyRoutes);
 router.use('/attendance', attendanceRoutes);
 router.use('/marketing-visits', marketingVisitRoutes);
+router.use('/user-types', userTypeRoutes);
+router.use('/permissions', permissionRoutes);
 
-router.get('/user-types', getUserTypes);
 router.get('/categories', getCategories);
 router.get('/departments', getDepartments);
 

@@ -30,7 +30,7 @@ export const PermissionModel = {
                 role_id: roleId,
                 permission_key: permissionKey,
                 ...updates
-            })
+            }, { onConflict: 'role_id,permission_key' })
             .select();
         if (error) throw new Error(error.message);
         return data ? data[0] : null;
