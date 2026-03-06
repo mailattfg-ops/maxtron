@@ -67,6 +67,12 @@ export const EmployeeModel = {
         const { employee_qualifications, employee_experiences, employee_certificates, employee_licenses, employee_passports, employee_loans, employee_targets, employee_suspenses, employee_incentive_slabs, addresses, ...baseUserData } = employeeData;
 
         let dataToInsert = { ...baseUserData };
+
+        // Remove empty employee_code to allow DB default (auto-increment) to work
+        if (!dataToInsert.employee_code || dataToInsert.employee_code.trim() === '') {
+            delete dataToInsert.employee_code;
+        }
+
         if (dataToInsert.password) {
             const salt = await bcrypt.genSalt(10);
             dataToInsert.password = await bcrypt.hash(dataToInsert.password, salt);
