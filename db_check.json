@@ -1,0 +1,28 @@
+{
+  "orders": [
+    {
+      "id": "5a245c7e-3945-4cf7-add5-c5190c46030d",
+      "order_number": "PO-954222",
+      "order_date": "2026-03-05T18:30:00.000Z",
+      "supplier_id": "7a535228-27f9-43b0-8951-c61d4ccab570",
+      "expected_delivery_date": "2026-03-25T18:30:00.000Z",
+      "total_amount": "36.00",
+      "status": "PENDING",
+      "remarks": "",
+      "company_id": "88a8faa1-4d14-4986-8144-592651ee9dff",
+      "created_at": "2026-03-06T07:26:32.667Z",
+      "updated_at": "2026-03-06T07:26:32.667Z"
+    }
+  ],
+  "fks": [
+    {
+      "table_schema": "public",
+      "constraint_name": "rm_orders_company_id_fkey",
+      "table_name": "rm_orders",
+      "column_name": "company_id",
+      "foreign_table_schema": "public",
+      "foreign_table_name": "companies",
+      "foreign_column_name": "id"
+    }
+  ]
+}

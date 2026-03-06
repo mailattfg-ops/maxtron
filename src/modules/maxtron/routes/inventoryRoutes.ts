@@ -6,9 +6,12 @@ import {
     updateInventoryItem,
     deleteInventoryItem
 } from '../controllers/inventoryController';
+import { getStockSummary } from '../controllers/stockController';
 import { protect } from '../../../middleware/authMiddleware';
 
 const router = Router();
+
+router.get('/stock-summary', protect, getStockSummary);
 
 // Map route paths to controller methods
 router.route('/')

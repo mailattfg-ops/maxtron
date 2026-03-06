@@ -41,7 +41,6 @@ router.use('/rm-orders', rmOrderRoutes);
 router.use('/purchase-entries', purchaseEntryRoutes);
 router.use('/consumptions', consumptionRoutes);
 router.use('/purchase-returns', purchaseReturnRoutes);
-router.get('/inventory/stock-summary', protect, getStockSummary);
 router.get('/departments', protect, getDepartments);
 router.get('/categories', protect, getCategories);
 
