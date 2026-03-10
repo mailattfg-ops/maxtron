@@ -18,3 +18,84 @@ export const getCategories = async (req: Request, res: Response) => {
         return res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
+
+// Create a new employee category
+export const createCategory = async (req: Request, res: Response) => {
+    try {
+        const { category_name } = req.body;
+        if (!category_name) {
+            return res.status(400).json({ success: false, message: 'Category name is required' });
+        }
+
+        const { data, error } = await supabase
+            .from('employee_categories')
+            .insert([{ category_name }])
+            .select()
+            .single();
+
+        if (error) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+
+        return res.status(201).json({ success: true, data });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Server Error' });
+    }
+};
+
+// Update an employee category
+export const updateCategory = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { category_name } = req.body;
+
+        const { data, error } = await supabase
+            .from('employee_categories')
+            .update({ category_name })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Server Error' });
+    }
+};
+
+// Delete an employee category
+export const deleteCategory = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        // Check if category is used by any users
+        const { count, error: checkError } = await supabase
+            .from('users')
+            .select('*', { count: 'exact', head: true })
+            .eq('category_id', id);
+
+        if (checkError) {
+            return res.status(400).json({ success: false, message: checkError.message });
+        }
+
+        if (count && count > 0) {
+            return res.status(400).json({ success: false, message: 'Cannot delete category as it is assigned to employees' });
+        }
+
+        const { error } = await supabase
+            .from('employee_categories')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+
+        return res.status(200).json({ success: true, message: 'Category deleted successfully' });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Server Error' });
+    }
+};

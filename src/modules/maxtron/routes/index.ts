@@ -20,8 +20,9 @@ import purchaseReturnRoutes from './purchaseReturnRoutes';
 import userTypeRoutes from './userTypeRoutes';
 import productionRoutes from './productionRoutes';
 import productRoutes from './productRoutes';
+import financeRoutes from './financeRoutes';
 import { getDepartments } from '../controllers/departmentController';
-import { getCategories } from '../controllers/categoryController';
+import { getCategories, createCategory, updateCategory, deleteCategory } from '../controllers/categoryController';
 import { protect } from '../../../middleware/authMiddleware';
 
 const router = Router();
@@ -47,7 +48,13 @@ router.use('/consumptions', consumptionRoutes);
 router.use('/purchase-returns', purchaseReturnRoutes);
 router.use('/production', productionRoutes);
 router.use('/products', productRoutes);
+router.use('/finance', financeRoutes);
 router.get('/departments', protect, getDepartments);
+
+// Categories CRUD
 router.get('/categories', protect, getCategories);
+router.post('/categories', protect, createCategory);
+router.put('/categories/:id', protect, updateCategory);
+router.delete('/categories/:id', protect, deleteCategory);
 
 export default router;

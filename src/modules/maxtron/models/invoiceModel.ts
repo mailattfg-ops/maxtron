@@ -88,5 +88,18 @@ export const InvoiceModel = {
         const { error } = await supabase.from('sales_invoices').delete().eq('id', id);
         if (error) throw new Error(error.message);
         return true;
+    },
+
+    getPendingByCustomer: async (customerId: string, companyId: string) => {
+        const { data, error } = await supabase
+            .from('v_sales_invoice_balances')
+            .select('*')
+            .eq('customer_id', customerId)
+            .eq('company_id', companyId)
+            .gt('pending_amount', 0)
+            .order('invoice_date', { ascending: true });
+
+        if (error) throw new Error(error.message);
+        return data || [];
     }
 };

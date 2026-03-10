@@ -40,6 +40,11 @@ export const PurchaseEntryModel = {
     create: async (entryData: any) => {
         const { items, ...entryInfo } = entryData;
 
+        // Calculate total_amount if not provided
+        if (!entryInfo.total_amount) {
+            entryInfo.total_amount = items.reduce((sum: number, item: any) => sum + (Number(item.received_quantity) * Number(item.rate)), 0) + Number(entryInfo.unloading_charges || 0);
+        }
+
         const { data: entry, error: entryErr } = await supabase
             .from('purchase_entries')
             .insert([entryInfo])
@@ -67,6 +72,11 @@ export const PurchaseEntryModel = {
     update: async (id: string, entryData: any) => {
         const { items, ...entryInfo } = entryData;
 
+        // Calculate total_amount if items changed
+        if (items) {
+            entryInfo.total_amount = items.reduce((sum: number, item: any) => sum + (Number(item.received_quantity) * Number(item.rate)), 0) + Number(entryInfo.unloading_charges || 0);
+        }
+
         const { data: entry, error: entryErr } = await supabase
             .from('purchase_entries')
             .update(entryInfo)
@@ -89,5 +99,18 @@ export const PurchaseEntryModel = {
         const { error } = await supabase.from('purchase_entries').delete().eq('id', id);
         if (error) throw new Error(error.message);
         return true;
+    },
+
+    getPendingBySupplier: async (supplierId: string, companyId: string) => {
+        const { data, error } = await supabase
+            .from('v_purchase_entry_balances')
+            .select('*')
+            .eq('supplier_id', supplierId)
+            .eq('company_id', companyId)
+            .gt('pending_amount', 0)
+            .order('entry_date', { ascending: true });
+
+        if (error) throw new Error(error.message);
+        return data || [];
     }
 };
