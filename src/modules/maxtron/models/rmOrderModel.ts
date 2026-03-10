@@ -4,10 +4,10 @@ export const RMOrderModel = {
     getAll: async (companyId?: string) => {
         let query = supabase.from('rm_orders').select(`
             *,
-            supplier_master(supplier_name, supplier_code),
+            supplier_master!supplier_id(supplier_name, supplier_code),
             rm_order_items(
                 rm_id, quantity, rate, amount,
-                raw_materials(rm_name, rm_code)
+                raw_materials!rm_id(rm_name, rm_code)
             )
         `);
         if (companyId) {
@@ -23,10 +23,10 @@ export const RMOrderModel = {
             .from('rm_orders')
             .select(`
                 *,
-                supplier_master(supplier_name, supplier_code),
+                supplier_master!supplier_id(supplier_name, supplier_code),
                 rm_order_items(
                     id, rm_id, quantity, rate, amount,
-                    raw_materials(rm_name, rm_code, grade)
+                    raw_materials!rm_id(rm_name, rm_code, grade)
                 )
             `)
             .eq('id', id)
@@ -47,7 +47,10 @@ export const RMOrderModel = {
         if (orderErr) throw new Error(orderErr.message);
 
         const orderId = order[0].id;
-        const itemsWithId = items.map((item: any) => ({ ...item, order_id: orderId }));
+        const itemsWithId = items.map((item: any) => {
+            const { amount, ...rest } = item;
+            return { ...rest, order_id: orderId };
+        });
 
         const { error: itemsErr } = await supabase.from('rm_order_items').insert(itemsWithId);
         if (itemsErr) throw new Error(itemsErr.message);
@@ -68,7 +71,10 @@ export const RMOrderModel = {
 
         // Replace items
         await supabase.from('rm_order_items').delete().eq('order_id', id);
-        const itemsWithId = items.map((item: any) => ({ ...item, order_id: id }));
+        const itemsWithId = items.map((item: any) => {
+            const { amount, ...rest } = item;
+            return { ...rest, order_id: id };
+        });
         await supabase.from('rm_order_items').insert(itemsWithId);
 
         return order[0];

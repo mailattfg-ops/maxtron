@@ -4,11 +4,11 @@ export const PurchaseEntryModel = {
     getAll: async (companyId?: string) => {
         let query = supabase.from('purchase_entries').select(`
             *,
-            supplier_master(supplier_name, supplier_code),
+            supplier_master!supplier_id(supplier_name, supplier_code),
             rm_orders(order_number),
             purchase_entry_items(
                 rm_id, received_quantity, rate, amount,
-                raw_materials(rm_name, rm_code)
+                raw_materials!rm_id(rm_name, rm_code)
             )
         `);
         if (companyId) {
@@ -24,11 +24,11 @@ export const PurchaseEntryModel = {
             .from('purchase_entries')
             .select(`
                 *,
-                supplier_master(supplier_name, supplier_code),
+                supplier_master!supplier_id(supplier_name, supplier_code),
                 rm_orders(order_number, order_date),
                 purchase_entry_items(
                     id, rm_id, ordered_quantity, received_quantity, rate, amount,
-                    raw_materials(rm_name, rm_code)
+                    raw_materials!rm_id(rm_name, rm_code)
                 )
             `)
             .eq('id', id)
@@ -48,7 +48,10 @@ export const PurchaseEntryModel = {
         if (entryErr) throw new Error(entryErr.message);
 
         const entryId = entry[0].id;
-        const itemsWithId = items.map((item: any) => ({ ...item, entry_id: entryId }));
+        const itemsWithId = items.map((item: any) => {
+            const { amount, ...rest } = item;
+            return { ...rest, entry_id: entryId };
+        });
 
         const { error: itemsErr } = await supabase.from('purchase_entry_items').insert(itemsWithId);
         if (itemsErr) throw new Error(itemsErr.message);
@@ -73,7 +76,10 @@ export const PurchaseEntryModel = {
         if (entryErr) throw new Error(entryErr.message);
 
         await supabase.from('purchase_entry_items').delete().eq('entry_id', id);
-        const itemsWithId = items.map((item: any) => ({ ...item, entry_id: id }));
+        const itemsWithId = items.map((item: any) => {
+            const { amount, ...rest } = item;
+            return { ...rest, entry_id: id };
+        });
         await supabase.from('purchase_entry_items').insert(itemsWithId);
 
         return entry[0];

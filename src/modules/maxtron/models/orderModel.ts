@@ -5,7 +5,7 @@ export const OrderModel = {
         let query = supabase.from('customer_orders').select(`
             *,
             customers(customer_name, customer_code),
-            order_items(*)
+            items:customer_order_items(*)
         `);
         if (companyId) {
             query = query.eq('company_id', companyId);
@@ -21,7 +21,7 @@ export const OrderModel = {
             .select(`
                 *,
                 customers(*),
-                order_items(*)
+                items:customer_order_items(*)
             `)
             .eq('id', id)
             .single();
@@ -43,11 +43,11 @@ export const OrderModel = {
 
         // Items
         if (items && items.length > 0) {
-            const enrichedItems = items.map((item: any) => ({
-                ...item,
-                order_id: orderId
-            }));
-            const { error: itemsErr } = await supabase.from('order_items').insert(enrichedItems);
+            const enrichedItems = items.map((item: any) => {
+                const { value, ...rest } = item;
+                return { ...rest, order_id: orderId };
+            });
+            const { error: itemsErr } = await supabase.from('customer_order_items').insert(enrichedItems);
             if (itemsErr) {
                 // Should potentially rollback or delete header, but simple logic for now
                 await supabase.from('customer_orders').delete().eq('id', orderId);
@@ -71,12 +71,12 @@ export const OrderModel = {
 
         // Replace Items (Delete all & Reinstate)
         if (items) {
-            await supabase.from('order_items').delete().eq('order_id', id);
-            const enrichedItems = items.map((item: any) => ({
-                ...item,
-                order_id: id
-            }));
-            const { error: itemsErr } = await supabase.from('order_items').insert(enrichedItems);
+            await supabase.from('customer_order_items').delete().eq('order_id', id);
+            const enrichedItems = items.map((item: any) => {
+                const { value, ...rest } = item;
+                return { ...rest, order_id: id };
+            });
+            const { error: itemsErr } = await supabase.from('customer_order_items').insert(enrichedItems);
             if (itemsErr) throw new Error(itemsErr.message);
         }
 

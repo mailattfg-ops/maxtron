@@ -4,7 +4,8 @@ export const ConsumptionModel = {
     getAll: async (companyId?: string) => {
         let query = supabase.from('material_consumptions').select(`
             *,
-            raw_materials(rm_name, rm_code, unit_type)
+            raw_materials!rm_id(rm_name, rm_code, unit_type),
+            issuer:users!issued_by(name)
         `);
         if (companyId) {
             query = query.eq('company_id', companyId);
@@ -19,7 +20,8 @@ export const ConsumptionModel = {
             .from('material_consumptions')
             .select(`
                 *,
-                raw_materials(rm_name, rm_code, grade)
+                raw_materials!rm_id(rm_name, rm_code, grade),
+                issuer:users!issued_by(name)
             `)
             .eq('id', id)
             .single();

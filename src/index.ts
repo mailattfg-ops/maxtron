@@ -21,8 +21,16 @@ app.use('/api/auth', authRoutes); // Auth is Global
 app.use('/api/maxtron', protect, maxtronRoutes);
 app.use('/api/keil', protect, keilRoutes);
 
+// Health Check
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'ERP Backend is healthy' });
+});
+
+
+
+// Catch-all for undefined API routes (ensures JSON response instead of HTML)
+app.use('/api', (req, res) => {
+    res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found on this server` });
 });
 
 app.listen(port, () => {

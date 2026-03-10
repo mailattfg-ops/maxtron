@@ -4,8 +4,8 @@ export const PurchaseReturnModel = {
     getAll: async (companyId?: string) => {
         let query = supabase.from('purchase_returns').select(`
             *,
-            supplier_master(supplier_name, supplier_code),
-            purchase_entries(entry_number, goods_receipt_no:entry_number)
+            supplier_master!supplier_id(supplier_name, supplier_code),
+            purchase_entries!purchase_entry_id(entry_number, goods_receipt_no:entry_number)
         `);
         if (companyId) {
             query = query.eq('company_id', companyId);
@@ -20,8 +20,8 @@ export const PurchaseReturnModel = {
             .from('purchase_returns')
             .select(`
                 *,
-                supplier_master(supplier_name, supplier_code),
-                purchase_entries(entry_number, entry_date)
+                supplier_master!supplier_id(supplier_name, supplier_code),
+                purchase_entries!purchase_entry_id(entry_number, entry_date)
             `)
             .eq('id', id)
             .single();
