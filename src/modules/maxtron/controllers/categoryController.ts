@@ -4,10 +4,11 @@ import { supabase } from '../../../config/supabase';
 // Get all employee categories
 export const getCategories = async (req: Request, res: Response) => {
     try {
-        const { data, error } = await supabase
-            .from('employee_categories')
-            .select('*')
-            .order('category_name', { ascending: true });
+        const { company_id } = req.query;
+        let query = supabase.from('employee_categories').select('*').order('category_name', { ascending: true });
+        if (company_id) query = query.eq('company_id', company_id);
+
+        const { data, error } = await query;
 
         if (error) {
             return res.status(400).json({ success: false, message: error.message });
@@ -22,14 +23,14 @@ export const getCategories = async (req: Request, res: Response) => {
 // Create a new employee category
 export const createCategory = async (req: Request, res: Response) => {
     try {
-        const { category_name } = req.body;
+        const { category_name, company_id } = req.body;
         if (!category_name) {
             return res.status(400).json({ success: false, message: 'Category name is required' });
         }
 
         const { data, error } = await supabase
             .from('employee_categories')
-            .insert([{ category_name }])
+            .insert([{ category_name, company_id }])
             .select()
             .single();
 
@@ -47,11 +48,11 @@ export const createCategory = async (req: Request, res: Response) => {
 export const updateCategory = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { category_name } = req.body;
+        const { category_name, company_id } = req.body;
 
         const { data, error } = await supabase
             .from('employee_categories')
-            .update({ category_name })
+            .update({ category_name, company_id })
             .eq('id', id)
             .select()
             .single();

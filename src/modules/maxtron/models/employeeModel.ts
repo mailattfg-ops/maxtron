@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 
 export const EmployeeModel = {
     // Get all employees (from users table)
-    getAll: async (companyName?: string): Promise<User[]> => {
+    getAll: async (companyName?: string, companyId?: string): Promise<User[]> => {
         let query = supabase
             .from('users')
             .select(`
@@ -26,6 +26,9 @@ export const EmployeeModel = {
 
         if (companyName) {
             query = query.filter('companies.company_name', 'eq', companyName);
+        }
+        if (companyId) {
+            query = query.filter('company_id', 'eq', companyId);
         }
 
         const { data, error } = await query.order('created_at', { ascending: false });

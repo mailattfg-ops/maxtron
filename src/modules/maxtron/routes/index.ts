@@ -28,6 +28,8 @@ import { protect } from '../../../middleware/authMiddleware';
 
 const router = Router();
 
+router.use(protect);
+
 // Modular routing for Maxtron Operations
 router.use('/inventory', inventoryRoutes);
 router.use('/employees', employeeRoutes);

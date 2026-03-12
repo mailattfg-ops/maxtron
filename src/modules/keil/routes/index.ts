@@ -9,9 +9,29 @@ import permissionRoutes from '../../maxtron/routes/permissionRoutes';
 import { getCategories } from '../../maxtron/controllers/categoryController';
 import { getDepartments } from '../../maxtron/controllers/departmentController';
 
+import operationRoutes from './operationRoutes';
+import fleetRoutes from './fleetRoutes';
+import expenseRoutes from './expenseRoutes';
+import { protect } from '../../../middleware/authMiddleware';
+
 const router = Router();
 
-// Modular routing for KEIL Operations
+router.use(protect);
+
+router.use((req, res, next) => {
+    console.log(`[KEIL ROUTER] ${req.method} ${req.url}`);
+    next();
+});
+
+// Modular routing for KEIL Operations & Fleet
+router.use('/operations', operationRoutes);
+router.use('/fleet', fleetRoutes);
+router.use('/hr-payroll/expenses', expenseRoutes);
+
+router.get('/fleet-test', (req, res) => {
+    res.json({ success: true, message: 'Fleet sub-router base is reachable' });
+});
+
 router.get('/dashboard', (req, res) => {
     res.json({ success: true, message: 'KEIL Module API is active.' });
 });
