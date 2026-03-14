@@ -41,12 +41,26 @@ export const login = async (req: Request, res: Response): Promise<void> => {
                 .select('permission_key, can_view, can_create, can_edit, can_delete')
                 .eq('role_id', user.type);
 
+            // Fetch User Company Details
+            let company = null;
+            if (user.company_id) {
+                const { data: companyData } = await supabase
+                    .from('companies')
+                    .select('id, company_name, company_code')
+                    .eq('id', user.company_id)
+                    .single();
+                company = companyData;
+            }
+
             const token = jwt.sign(
                 {
                     id: user.id,
                     role: user.type,
                     role_name: roleData?.name || '',
                     email: user.username,
+                    company_id: user.company_id,
+                    company_name: company?.company_name || '',
+                    company_code: company?.company_code || '',
                     permissions: permissions || []
                 },
                 process.env.JWT_SECRET || 'super_secret_dev_key_12345',
@@ -62,6 +76,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
                     email: user.username,
                     type: user.type,
                     role_name: roleData?.name || '',
+                    company_id: user.company_id,
+                    company: company,
                     permissions: permissions || []
                 }
             });

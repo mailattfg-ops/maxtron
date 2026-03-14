@@ -4,13 +4,13 @@ const TABLE = 'supplier_master';
 
 export const SupplierModel = {
     getAll: async (companyId?: string) => {
-        console.log("!!! GET ALL - TABLE =", TABLE);
         let query = supabase.from(TABLE).select(`
             id, supplier_code, supplier_name, gst_no, credit_period, credit_limit,
             product_supplied, delivery_period, delivery_mode, opening_balance, company_id,
             supplier_address_id, billing_address_id,
             office_addr_data:addresses!supplier_address_id(*),
-            billing_addr_data:addresses!billing_address_id(*)
+            billing_addr_data:addresses!billing_address_id(*),
+            supplied_materials:supplier_materials!supplier_id(rm_id, raw_materials(rm_name))
         `);
         if (companyId) {
             query = query.eq('company_id', companyId);
@@ -28,7 +28,8 @@ export const SupplierModel = {
                 product_supplied, delivery_period, delivery_mode, opening_balance, company_id,
                 supplier_address_id, billing_address_id,
                 office_addr_data:addresses!supplier_address_id(*),
-                billing_addr_data:addresses!billing_address_id(*)
+                billing_addr_data:addresses!billing_address_id(*),
+                supplied_materials:supplier_materials!supplier_id(rm_id, raw_materials(rm_name))
             `)
             .eq('id', id)
             .single();
@@ -37,7 +38,6 @@ export const SupplierModel = {
     },
 
     create: async (input: any) => {
-        console.log("!!! CALLING SupplierModel.create with TABLE =", TABLE);
         let regId = null;
         let billId = null;
 
@@ -82,7 +82,21 @@ export const SupplierModel = {
             .select('id, supplier_name');
 
         if (error) throw new Error(error.message);
-        return data[0];
+        
+        const newSupplierId = data[0].id;
+        
+        if (input.supplied_materials && Array.isArray(input.supplied_materials) && input.supplied_materials.length > 0) {
+            const smPayload = input.supplied_materials.map((rm_id: string) => ({
+                supplier_id: newSupplierId,
+                rm_id
+            }));
+            const { error: smError } = await supabase.from('supplier_materials').insert(smPayload);
+            if (smError) {
+                throw new Error("Failed to assign materials to supplier: " + smError.message);
+            }
+        }
+
+        return await SupplierModel.getById(newSupplierId);
     },
 
     update: async (id: string, input: any) => {
@@ -127,10 +141,38 @@ export const SupplierModel = {
             .from(TABLE)
             .update(payload)
             .eq('id', id)
-            .select('id, supplier_name');
+            .select(`
+                id, supplier_code, supplier_name, gst_no, credit_period, credit_limit,
+                product_supplied, delivery_period, delivery_mode, opening_balance, company_id,
+                supplier_address_id, billing_address_id,
+                office_addr_data:addresses!supplier_address_id(*),
+                billing_addr_data:addresses!billing_address_id(*),
+                supplied_materials:supplier_materials!supplier_id(rm_id, raw_materials(rm_name))
+            `)
+            .single();
 
         if (error) throw new Error(error.message);
-        return data[0];
+
+        if (input.supplied_materials !== undefined && Array.isArray(input.supplied_materials)) {
+            // Delete old ones first
+            const { error: delError } = await supabase.from('supplier_materials').delete().eq('supplier_id', id);
+            if (delError) console.error("Error deleting old supplier materials:", delError);
+            
+            if (input.supplied_materials.length > 0) {
+                const smPayload = input.supplied_materials.map((rm_id: string) => ({
+                    supplier_id: id,
+                    rm_id
+                }));
+                const { error: smError } = await supabase.from('supplier_materials').insert(smPayload);
+                if (smError) {
+                    console.error("Error updating supplier materials:", smError);
+                    throw new Error("Failed to update assigned materials: " + smError.message);
+                }
+            }
+        }
+
+        // Fetch again to get the absolute latest state including the updated materials
+        return await SupplierModel.getById(id);
     },
 
     delete: async (id: string) => {

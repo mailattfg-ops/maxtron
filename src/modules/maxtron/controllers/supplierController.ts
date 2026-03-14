@@ -27,6 +27,7 @@ export const getSupplier = async (req: Request, res: Response): Promise<void> =>
 
 export const createSupplier = async (req: Request, res: Response): Promise<void> => {
     try {
+        console.log("Creating Supplier with body:", JSON.stringify(req.body, null, 2));
         const newSupplier = await SupplierModel.create(req.body);
         res.status(201).json({ success: true, data: newSupplier });
     } catch (error: any) {
@@ -41,6 +42,7 @@ export const createSupplier = async (req: Request, res: Response): Promise<void>
 export const updateSupplier = async (req: Request, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
+        console.log(`Updating Supplier ${id} with body:`, JSON.stringify(req.body, null, 2));
         const updatedSupplier = await SupplierModel.update(id as string, req.body);
         if (!updatedSupplier) {
             res.status(404).json({ success: false, message: 'Supplier not found' });
