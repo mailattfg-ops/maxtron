@@ -2,18 +2,18 @@ import { supabase } from '../../../config/supabase';
 
 export const RouteModel = {
     getAll: async (companyId?: string) => {
-        let query = supabase.from('keil_routes').select('*, company:company_id(company_name)');
+        let query = supabase.from('keil_routes').select('*, keil_branches(branch_name)');
         if (companyId) query = query.eq('company_id', companyId);
         const { data, error } = await query.order('route_name');
         if (error) throw new Error(error.message);
         return (data || []).map(r => ({
             ...r,
-            branch_name: r.company?.company_name
+            branch_name: r.keil_branches?.branch_name
         }));
     },
 
     getById: async (id: string) => {
-        const { data, error } = await supabase.from('keil_routes').select('*, company:company_id(company_name)').eq('id', id).single();
+        const { data, error } = await supabase.from('keil_routes').select('*, keil_branches(branch_name)').eq('id', id).single();
         if (error) throw new Error(error.message);
         return data;
     },
