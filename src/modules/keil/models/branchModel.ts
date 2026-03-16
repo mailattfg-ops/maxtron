@@ -28,6 +28,28 @@ export const BranchModel = {
     },
 
     delete: async (id: string) => {
+        // Check for associated routes
+        const { data: routes, error: routeError } = await supabase
+            .from('keil_routes')
+            .select('id')
+            .eq('branch_id', id)
+            .limit(1);
+        
+        if (routes && routes.length > 0) {
+            throw new Error('Cannot delete branch: It has associated routes. Please delete or reassign routes first.');
+        }
+
+        // Check for associated HCEs
+        const { data: hces, error: hceError } = await supabase
+            .from('keil_hces')
+            .select('id')
+            .eq('branch_id', id)
+            .limit(1);
+        
+        if (hces && hces.length > 0) {
+            throw new Error('Cannot delete branch: It has associated Health Care Establishments (HCEs). Please delete or reassign HCEs first.');
+        }
+
         const { error } = await supabase.from('keil_branches').delete().eq('id', id);
         if (error) throw new Error(error.message);
         return true;
