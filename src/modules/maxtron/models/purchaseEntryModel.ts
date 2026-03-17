@@ -97,7 +97,7 @@ export const PurchaseEntryModel = {
     },
 
     update: async (id: string, entryData: any) => {
-        const { items, ...entryInfo } = entryData;
+        const { items, reorder_missing, ...entryInfo } = entryData;
 
         // Calculate total_amount if items changed
         if (items) {
