@@ -14,6 +14,7 @@ export interface User {
     phone?: string | null;
     aadhaar?: string | null;
     category_id?: string | null;
+    basic_salary?: number;
     company_id?: string | null;
     is_deleted?: boolean;
     created_at?: string;
