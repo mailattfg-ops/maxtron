@@ -31,13 +31,16 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'ERP Backend is healthy' });
 });
 
-
-
 // Catch-all for undefined API routes (ensures JSON response instead of HTML)
 app.use('/api', (req, res) => {
-    res.status(404).json({ success: false, message: `[VER-2] Route ${req.originalUrl} not found on this server` });
+    res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found on this server` });
 });
 
-app.listen(port, () => {
-    console.log(`V2 - Backend running on port ${port} - RESTART VERIFIED`);
-});
+// Local Development Server
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+    app.listen(port, () => {
+        console.log(`V2 - Backend running on port ${port} - RESTART VERIFIED`);
+    });
+}
+
+export default app;
