@@ -66,6 +66,15 @@ export const createVehicleLog = async (req: Request, res: Response) => {
     }
 };
 
+export const updateVehicleLog = async (req: Request, res: Response) => {
+    try {
+        const data = await VehicleLogModel.update(req.params.id as string, req.body);
+        res.status(200).json({ success: true, data });
+    } catch (err: any) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
 export const deleteVehicleLog = async (req: Request, res: Response) => {
     try {
         await VehicleLogModel.delete(req.params.id as string);
