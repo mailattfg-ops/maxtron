@@ -21,7 +21,9 @@ import userTypeRoutes from './userTypeRoutes';
 import productionRoutes from './productionRoutes';
 import productRoutes from './productRoutes';
 import financeRoutes from './financeRoutes';
+import payrollRoutes from './payrollRoutes';
 import { getDepartments } from '../controllers/departmentController';
+import rmTypeCodeRoutes from './rmTypeCodeRoutes';
 import { getCategories, createCategory, updateCategory, deleteCategory } from '../controllers/categoryController';
 import { getDashboardSummary } from '../controllers/dashboardController';
 import { protect } from '../../../middleware/authMiddleware';
@@ -52,7 +54,9 @@ router.use('/purchase-returns', purchaseReturnRoutes);
 router.use('/production', productionRoutes);
 router.use('/products', productRoutes);
 router.use('/finance', financeRoutes);
+router.use('/payroll', payrollRoutes);
 router.get('/departments', protect, getDepartments);
+router.use('/rm-type-codes', rmTypeCodeRoutes);
 
 // Dashboard Summary
 router.get('/dashboard-summary', protect, getDashboardSummary);

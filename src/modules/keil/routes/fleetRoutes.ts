@@ -12,6 +12,7 @@ router.delete('/vehicles/:id', FleetController.deleteVehicle);
 // Travel & Fuel Logs
 router.get('/logs', FleetController.getVehicleLogs);
 router.post('/logs', FleetController.createVehicleLog);
+router.put('/logs/:id', FleetController.updateVehicleLog);
 router.delete('/logs/:id', FleetController.deleteVehicleLog);
 
 // Repair & Workshop Logs

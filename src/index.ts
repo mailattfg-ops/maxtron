@@ -12,7 +12,17 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(cors());
+// Optimized CORS for Vercel & Local Dev
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow all origins for debugging and ease of use with the branch deployments
+        callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+}));
+
 app.use(express.json());
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
@@ -31,13 +41,27 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'ERP Backend is healthy' });
 });
 
-
+// Diagnostic Route (Check Env Vars without exposing them)
+app.get('/api/verify', (req, res) => {
+    res.json({
+        supabase_url: !!process.env.SUPABASE_URL,
+        supabase_key: !!process.env.SUPABASE_KEY,
+        jwt_secret: !!process.env.JWT_SECRET,
+        node_env: process.env.NODE_ENV,
+        vercel: !!process.env.VERCEL
+    });
+});
 
 // Catch-all for undefined API routes (ensures JSON response instead of HTML)
 app.use('/api', (req, res) => {
-    res.status(404).json({ success: false, message: `[VER-2] Route ${req.originalUrl} not found on this server` });
+    res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found on this server` });
 });
 
-app.listen(port, () => {
-    console.log(`V2 - Backend running on port ${port} - RESTART VERIFIED`);
-});
+// Local Development Server
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+    app.listen(port, () => {
+        console.log(`V2 - Backend running on port ${port} - RESTART VERIFIED`);
+    });
+}
+
+export default app;
