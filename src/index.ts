@@ -41,6 +41,17 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'ERP Backend is healthy' });
 });
 
+// Diagnostic Route (Check Env Vars without exposing them)
+app.get('/api/verify', (req, res) => {
+    res.json({
+        supabase_url: !!process.env.SUPABASE_URL,
+        supabase_key: !!process.env.SUPABASE_KEY,
+        jwt_secret: !!process.env.JWT_SECRET,
+        node_env: process.env.NODE_ENV,
+        vercel: !!process.env.VERCEL
+    });
+});
+
 // Catch-all for undefined API routes (ensures JSON response instead of HTML)
 app.use('/api', (req, res) => {
     res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found on this server` });
