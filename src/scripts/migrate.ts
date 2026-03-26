@@ -779,6 +779,21 @@ async function runMigrations() {
       );
     `);
 
+    console.log('9.10️⃣ Creating Announcements table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS announcements (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        type TEXT NOT NULL CHECK (type IN ('info', 'warning', 'critical')),
+        tenant TEXT NOT NULL CHECK (tenant IN ('maxtron', 'keil')),
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        created_by UUID REFERENCES users(id) ON DELETE SET NULL
+      );
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_announcements_tenant_active ON announcements(tenant, active);');
+
     console.log('🔟 Refreshing PostgREST schema cache...');
     await client.query("NOTIFY pgrst, 'reload schema';");
 
