@@ -7,17 +7,25 @@ const router = Router();
 // Batches / Extrusion
 router.get('/batches', protect, productionController.getBatches);
 router.post('/batches', protect, productionController.createBatch);
+router.put('/batches/:id', protect, productionController.updateBatch);
+router.delete('/batches/:id', protect, productionController.deleteBatch);
 
 // Conversion / Cutting
 router.get('/conversions', protect, productionController.getConversions);
 router.post('/conversions', protect, productionController.createConversion);
+router.put('/conversions/:id', protect, productionController.updateConversion);
+router.delete('/conversions/:id', protect, productionController.deleteConversion);
 
 // Packing
 router.get('/packing', protect, productionController.getPacking);
 router.post('/packing', protect, productionController.createPacking);
+router.put('/packing/:id', protect, productionController.updatePacking);
+router.delete('/packing/:id', protect, productionController.deletePacking);
 
 // Wastage
 router.get('/wastage', protect, productionController.getWastage);
 router.post('/wastage', protect, productionController.createWastage);
+router.put('/wastage/:id', protect, productionController.updateWastage);
+router.delete('/wastage/:id', protect, productionController.deleteWastage);
 
 export default router;
