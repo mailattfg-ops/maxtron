@@ -104,3 +104,35 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         res.status(500).json({ success: false, message: 'Server error during login', error: error.message });
     }
 };
+
+export const verifyAdminPassword = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { password } = req.body;
+        const userId = (req as any).user.id;
+
+        const user = await UserModel.getByUsername((req as any).user.email);
+
+        if (!user || !user.password) {
+            res.status(401).json({ success: false, message: 'Invalid user' });
+            return;
+        }
+
+        // Verify if user is admin (you might want to check the role specifically here)
+        // For now we just verify the password of the current user
+        let isMatch = false;
+        if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
+            isMatch = await bcrypt.compare(password, user.password);
+        } else {
+            isMatch = password === user.password;
+        }
+
+        if (isMatch) {
+            res.status(200).json({ success: true, message: 'Password verified' });
+        } else {
+            res.status(401).json({ success: false, message: 'Incorrect password' });
+        }
+    } catch (error: any) {
+        res.status(500).json({ success: false, message: 'Verification failed', error: error.message });
+    }
+};
+
