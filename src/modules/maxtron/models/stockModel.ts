@@ -27,8 +27,8 @@ export const StockModel = {
 
         // Calculate Stock
         const stockSummary = materials.map(m => {
-            const purchased = purchaseItems?.filter(p => p.rm_id === m.id)
-                .reduce((acc, curr) => acc + Number(curr.received_quantity || 0), 0) || 0;
+            const purchased = (purchaseItems?.filter(p => p.rm_id === m.id)
+                .reduce((acc, curr) => acc + Number(curr.received_quantity || 0), 0) || 0) + Number(m.opening_stock || 0);
 
             const consumed = consumptions?.filter(c => c.rm_id === m.id)
                 .reduce((acc, curr) => acc + Number(curr.quantity_used || 0), 0) || 0;

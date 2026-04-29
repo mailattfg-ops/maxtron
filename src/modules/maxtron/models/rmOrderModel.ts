@@ -47,17 +47,16 @@ export const RMOrderModel = {
 
         const orderId = order[0].id;
         const itemsWithId = items.map((item: any) => {
-            // Calculate base amount if not provided or if total amount is provided separately
-            // In frontend, 'amount' is usually line total (base + gst)
-            // System stores base in 'amount' column
             const totalAmount = Number(item.total_line_amount || item.amount) || (Number(item.quantity) * Number(item.rate)) + Number(item.gst_amount || 0);
             const baseAmount = totalAmount - Number(item.gst_amount || 0);
             return {
-                ...item,
-                amount: baseAmount,
                 order_id: orderId,
-                // Clean up any frontend helper fields
-                total_line_amount: undefined
+                rm_id: item.rm_id,
+                quantity: item.quantity,
+                rate: item.rate,
+                gst_percent: item.gst_percent,
+                gst_amount: item.gst_amount,
+                amount: baseAmount
             };
         });
 
@@ -79,18 +78,26 @@ export const RMOrderModel = {
         if (orderErr) throw new Error(orderErr.message);
 
         // Replace items
-        await supabase.from('rm_order_items').delete().eq('order_id', id);
-        const itemsWithId = items.map((item: any) => {
-            const totalAmount = Number(item.total_line_amount || item.amount) || (Number(item.quantity) * Number(item.rate)) + Number(item.gst_amount || 0);
-            const baseAmount = totalAmount - Number(item.gst_amount || 0);
-            return {
-                ...item,
-                amount: baseAmount,
-                order_id: id,
-                total_line_amount: undefined
-            };
-        });
-        await supabase.from('rm_order_items').insert(itemsWithId);
+        const { error: deleteErr } = await supabase.from('rm_order_items').delete().eq('order_id', id);
+        if (deleteErr) throw new Error(deleteErr.message);
+
+        if (items && items.length > 0) {
+            const itemsWithId = items.map((item: any) => {
+                const totalAmount = Number(item.total_line_amount || item.amount) || (Number(item.quantity) * Number(item.rate)) + Number(item.gst_amount || 0);
+                const baseAmount = totalAmount - Number(item.gst_amount || 0);
+                return {
+                    order_id: id,
+                    rm_id: item.rm_id,
+                    quantity: item.quantity,
+                    rate: item.rate,
+                    gst_percent: item.gst_percent,
+                    gst_amount: item.gst_amount,
+                    amount: baseAmount
+                };
+            });
+            const { error: insertErr } = await supabase.from('rm_order_items').insert(itemsWithId);
+            if (insertErr) throw new Error(insertErr.message);
+        }
 
         return order[0];
     },
