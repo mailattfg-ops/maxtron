@@ -64,8 +64,9 @@ export const FinanceController = {
 
     getPendingInvoices: async (req: Request, res: Response) => {
         try {
-            const { customerId, companyId } = req.query;
-            const data = await InvoiceModel.getPendingByCustomer(customerId as string, companyId as string);
+            const customerId = (req.query.customerId || req.query.customer_id) as string;
+            const companyId = (req.query.companyId || req.query.company_id) as string;
+            const data = await InvoiceModel.getPendingByCustomer(customerId, companyId);
             res.json({ success: true, data });
         } catch (err: any) {
             res.status(500).json({ success: false, message: 'Failed to fetch pending invoices', error: err.message });
@@ -128,8 +129,9 @@ export const FinanceController = {
 
     getPendingBills: async (req: Request, res: Response) => {
         try {
-            const { supplierId, companyId } = req.query;
-            const data = await PurchaseEntryModel.getPendingBySupplier(supplierId as string, companyId as string);
+            const supplierId = (req.query.supplierId || req.query.supplier_id) as string;
+            const companyId = (req.query.companyId || req.query.company_id) as string;
+            const data = await PurchaseEntryModel.getPendingBySupplier(supplierId, companyId);
             res.json({ success: true, data });
         } catch (err: any) {
             res.status(500).json({ success: false, message: 'Failed to fetch pending bills', error: err.message });
