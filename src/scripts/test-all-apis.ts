@@ -14,6 +14,8 @@ import { EInvoiceService } from '../modules/maxtron/services/eInvoiceService';
 const secret = process.env.JWT_SECRET || 'super_secret_dev_key_12345';
 const BASE_URL = 'https://maxtron-backend-git-develop-yachthub-47e69f1e.vercel.app';
 const DEFAULT_COMPANY_ID = '739f66c9-4f5a-428f-984e-ac9e2e689b59';
+const TEST_CUSTOMER_ID = '8f3e58b1-4c12-4e9b-b18c-333333333333';
+const TEST_SUPPLIER_ID = '9a3e58b1-4c12-4e9b-b18c-444444444444';
 
 // Generate test JWT for Maxtron Admin
 const token = jwt.sign({
@@ -106,7 +108,7 @@ async function runTestSuite() {
   console.log(`Targeting Preview Environment: ${BASE_URL}`);
   console.log("=========================================================================\n");
 
-  const compQuery = `?company_id=${DEFAULT_COMPANY_ID}`;
+  const compQuery = `?companyId=${DEFAULT_COMPANY_ID}&company_id=${DEFAULT_COMPANY_ID}`;
 
   // Group 1: Core System & Auth APIs
   console.log("📡 Group 1: Core System & Auth APIs");
@@ -153,8 +155,8 @@ async function runTestSuite() {
   results.push(await callEndpoint("Maxtron Finance", "GET", "/api/maxtron/finance/collections"));
   results.push(await callEndpoint("Maxtron Finance", "GET", "/api/maxtron/finance/payments"));
   results.push(await callEndpoint("Maxtron Finance", "GET", "/api/maxtron/finance/petty-cash"));
-  results.push(await callEndpoint("Maxtron Finance", "GET", `/api/maxtron/finance/pending-invoices${compQuery}`));
-  results.push(await callEndpoint("Maxtron Finance", "GET", `/api/maxtron/finance/pending-bills${compQuery}`));
+  results.push(await callEndpoint("Maxtron Finance", "GET", `/api/maxtron/finance/pending-invoices${compQuery}&customerId=${TEST_CUSTOMER_ID}`));
+  results.push(await callEndpoint("Maxtron Finance", "GET", `/api/maxtron/finance/pending-bills${compQuery}&supplierId=${TEST_SUPPLIER_ID}`));
   results.push(await callEndpoint("Maxtron Finance", "GET", "/api/maxtron/finance/scorecard"));
 
   results.push(await callEndpoint("Maxtron Marketing", "GET", "/api/maxtron/marketing-visits"));
