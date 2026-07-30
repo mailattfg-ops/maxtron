@@ -19,6 +19,7 @@ router.post('/invoices', protect, invoiceController.create);
 router.put('/invoices/:id', protect, invoiceController.update);
 router.delete('/invoices/:id', protect, invoiceController.delete);
 router.post('/invoices/:id/einvoice', protect, invoiceController.generateEInvoice);
+router.post('/invoices/:id/ewaybill', protect, invoiceController.generateEwb);
 
 // Deliveries
 router.get('/deliveries', protect, deliveryController.getAll);

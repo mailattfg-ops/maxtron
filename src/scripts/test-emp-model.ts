@@ -1,5 +1,5 @@
-import dns from "dns";
-dns.setDefaultResultOrder("ipv4first");
+// import dns from "dns";
+// dns.setDefaultResultOrder("ipv4first");
 import { EmployeeModel } from '../modules/maxtron/models/employeeModel';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -15,7 +15,10 @@ async function test() {
       console.log(JSON.stringify(emps[0], null, 2));
     }
   } catch (err: any) {
-    console.error("ERROR running EmployeeModel.getAll():", err.message);
+    console.error("ERROR running EmployeeModel.getAll():", err);
+    if (err.cause) {
+      console.error("ERROR CAUSE:", err.cause);
+    }
   }
 }
 

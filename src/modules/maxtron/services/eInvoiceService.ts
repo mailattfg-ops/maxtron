@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import { supabase } from '../../../config/supabase';
 
 export interface EInvoiceResponse {
@@ -14,24 +13,21 @@ export class EInvoiceService {
     const env = (process.env.EINVOICE_ENV || 'sandbox').toLowerCase();
     const isProd = env === 'production' || env === 'prod';
     
+    // Masters India GSP credentials
     if (isProd) {
       return {
-        clientId: process.env.EINVOICE_PROD_CLIENT_ID || process.env.EINVOICE_CLIENT_ID || '',
-        clientSecret: process.env.EINVOICE_PROD_CLIENT_SECRET || process.env.EINVOICE_CLIENT_SECRET || '',
-        username: process.env.EINVOICE_PROD_USERNAME || process.env.EINVOICE_USERNAME || '',
-        password: process.env.EINVOICE_PROD_PASSWORD || process.env.EINVOICE_PASSWORD || '',
-        gstin: process.env.EINVOICE_PROD_GSTIN || process.env.EINVOICE_GSTIN || '',
-        baseUrl: process.env.EINVOICE_PROD_BASE_URL || process.env.EINVOICE_BASE_URL || 'https://gsp.einvoice.gov.in/api/v1.03',
+        username: process.env.MI_GSP_PROD_USERNAME || process.env.MI_GSP_USERNAME || '',
+        password: process.env.MI_GSP_PROD_PASSWORD || process.env.MI_GSP_PASSWORD || '',
+        gstin: process.env.MI_GSP_PROD_GSTIN || process.env.MI_GSP_GSTIN || '',
+        baseUrl: process.env.MI_GSP_PROD_BASE_URL || 'https://api.mastersindia.co/api/v1',
         environment: 'production'
       };
     } else {
       return {
-        clientId: process.env.EINVOICE_SANDBOX_CLIENT_ID || process.env.EINVOICE_CLIENT_ID || '',
-        clientSecret: process.env.EINVOICE_SANDBOX_CLIENT_SECRET || process.env.EINVOICE_CLIENT_SECRET || '',
-        username: process.env.EINVOICE_SANDBOX_USERNAME || process.env.EINVOICE_USERNAME || '',
-        password: process.env.EINVOICE_SANDBOX_PASSWORD || process.env.EINVOICE_PASSWORD || '',
-        gstin: process.env.EINVOICE_SANDBOX_GSTIN || process.env.EINVOICE_GSTIN || '',
-        baseUrl: process.env.EINVOICE_SANDBOX_BASE_URL || process.env.EINVOICE_BASE_URL || 'https://gsp.einvoice.gov.in/api/v1.03',
+        username: process.env.MI_GSP_SANDBOX_USERNAME || process.env.MI_GSP_USERNAME || 'aman@mastersindia.co',
+        password: process.env.MI_GSP_SANDBOX_PASSWORD || process.env.MI_GSP_PASSWORD || 'Miitspl@123',
+        gstin: process.env.MI_GSP_SANDBOX_GSTIN || process.env.MI_GSP_GSTIN || '09AAAPG7885R002',
+        baseUrl: process.env.MI_GSP_SANDBOX_BASE_URL || 'https://sandb-api.mastersindia.co/api/v1',
         environment: 'sandbox'
       };
     }
@@ -42,30 +38,11 @@ export class EInvoiceService {
       return true;
     }
     const creds = this.getCredentials();
-    return !creds.clientId || !creds.username || !creds.password || !creds.gstin;
-  }
-
-  private static decryptAes256Ecb(encryptedTextBase64: string, keyBase64: string): string {
-    const key = Buffer.from(keyBase64, 'base64');
-    const encryptedText = Buffer.from(encryptedTextBase64, 'base64');
-    const decipher = crypto.createDecipheriv('aes-256-ecb', key, null);
-    decipher.setAutoPadding(true);
-    let decrypted = decipher.update(encryptedText);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
-    return decrypted.toString('utf8');
-  }
-
-  private static encryptAes256Ecb(plainText: string, keyBase64: string): string {
-    const key = Buffer.from(keyBase64, 'base64');
-    const cipher = crypto.createCipheriv('aes-256-ecb', key, null);
-    cipher.setAutoPadding(true);
-    let encrypted = cipher.update(plainText, 'utf8');
-    encrypted = Buffer.concat([encrypted, cipher.final()]);
-    return encrypted.toString('base64');
+    return !creds.username || !creds.password || !creds.gstin;
   }
 
   /**
-   * Main method to generate E-Invoice (IRN)
+   * Main method to generate E-Invoice (IRN) via Masters India GSP
    */
   public static async generateEInvoice(
     invoice: any,
@@ -89,138 +66,145 @@ export class EInvoiceService {
       }
 
       const creds = this.getCredentials();
-      const appKeyBytes = crypto.randomBytes(32);
-      const appKeyBase64 = appKeyBytes.toString('base64');
 
-      console.log(`[EInvoiceService] Authenticating with E-Invoice API (${creds.environment}): ${creds.baseUrl}/auth`);
-      const authRes = await fetch(`${creds.baseUrl}/auth`, {
+      // Step A: Authenticate with Masters India GSP to get JWT token
+      console.log(`[EInvoiceService] Authenticating with Masters India Token API (${creds.environment}): ${creds.baseUrl}/token-auth/`);
+      const authRes = await fetch(`${creds.baseUrl}/token-auth/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'client-id': creds.clientId,
-          'client-secret': creds.clientSecret,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username: creds.username,
           password: creds.password,
-          appKey: appKeyBase64,
         }),
       });
 
       if (!authRes.ok) {
         const errText = await authRes.text();
-        throw new Error(`Authentication failed with status ${authRes.status}: ${errText}`);
+        throw new Error(`Masters India authentication failed: ${errText}`);
       }
 
       const authData = await authRes.json();
-      const { authtoken, sek } = authData;
+      const token = authData.token;
 
-      if (!authtoken || !sek) {
-        throw new Error(`Invalid response from Auth API: missing authtoken or sek.`);
+      if (!token) {
+        throw new Error(`Invalid response from Masters India GSP: missing auth token.`);
       }
 
-      // Decrypt SEK using AppKey
-      const decryptedSekBase64 = this.decryptAes256Ecb(sek, appKeyBase64);
-
-      // Build standard Schema v1.03
+      // Step B: Build standard e-Invoice schema payload (Version 1.1)
+      const totalAmount = Number(invoice.total_amount);
+      const taxAmount = invoice.tax_amount ? Number(invoice.tax_amount) : 0;
+      
       const einvoicePayload = {
-        Version: "1.03",
-        TranDtls: {
-          TaxSch: "GST",
-          SupTyp: "B2B",
-          RegRev: "N",
+        user_gstin: creds.gstin,
+        data_source: "erp",
+        transaction_details: {
+          supply_type: "B2B",
+          charge_type: "N",
+          igst_on_intra: "N",
+          ecommerce_gstin: ""
         },
-        DocDtls: {
-          Typ: "INV",
-          No: invoice.invoice_number,
-          Dt: new Date(invoice.invoice_date).toLocaleDateString('en-GB'), // DD/MM/YYYY
+        document_details: {
+          document_type: "INV",
+          document_number: invoice.invoice_number.substring(0, 16), // Max 16 characters
+          document_date: new Date(invoice.invoice_date).toLocaleDateString('en-GB') // "DD/MM/YYYY"
         },
-        SellerDtls: {
-          Gstin: creds.gstin,
-          LglNm: "Maxtron Industries",
-          Addr1: "Maxtron Industrial Area",
-          Loc: "Mumbai",
-          Pin: 400001,
-          Stcd: "27",
+        seller_details: {
+          gstin: creds.gstin,
+          legal_name: "Maxtron Industries",
+          trade_name: "Maxtron",
+          address1: "Maxtron Industrial Area",
+          address2: "Phase II",
+          location: "Mumbai",
+          pincode: 400001,
+          state_code: "27",
         },
-        BuyerDtls: {
-          Gstin: customer.gst_no,
-          LglNm: customer.customer_name,
-          Pos: "27", // State code
-          Addr1: customer.addresses?.[0]?.street || "Customer Address",
-          Loc: customer.addresses?.[0]?.city || "Mumbai",
-          Pin: parseInt(customer.addresses?.[0]?.zip_code) || 400001,
-          Stcd: "27",
+        buyer_details: {
+          gstin: customer.gst_no,
+          legal_name: customer.customer_name,
+          trade_name: customer.customer_name,
+          address1: customer.addresses?.[0]?.street || "Customer Address",
+          address2: "",
+          location: customer.addresses?.[0]?.city || "Mumbai",
+          pincode: parseInt(customer.addresses?.[0]?.zip_code) || 400001,
+          place_of_supply: customer.gst_no.substring(0, 2), // First 2 digits of buyer GSTIN is state code
+          state_code: customer.gst_no.substring(0, 2),
         },
-        ValDtls: {
-          AssVal: Number(invoice.total_amount),
-          CgstVal: invoice.tax_amount ? Number(invoice.tax_amount) / 2 : 0,
-          SgstVal: invoice.tax_amount ? Number(invoice.tax_amount) / 2 : 0,
-          IgstVal: 0,
-          CesVal: 0,
-          StVal: 0,
-          TotInvVal: Number(invoice.net_amount),
+        value_details: {
+          total_assessable_value: totalAmount,
+          total_cgst_value: taxAmount / 2,
+          total_sgst_value: taxAmount / 2,
+          total_igst_value: 0,
+          total_cess_value: 0,
+          total_cess_value_of_state: 0,
+          total_discount: 0,
+          total_other_charge: 0,
+          total_invoice_value: totalAmount + taxAmount,
+          round_off_amount: 0,
+          total_invoice_value_additional_currency: 0
         },
-        ItemList: items.map((item: any, idx: number) => ({
-          SlNo: (idx + 1).toString(),
-          PrdDesc: item.finished_products?.product_name || "Industrial Product",
-          IsServc: "N",
-          HsnCd: item.finished_products?.hsn_code || "3920",
-          Qty: Number(item.quantity),
-          Unit: "KGS",
-          UnitPrice: Number(item.rate),
-          TotAmt: Number(item.amount),
-          AssAmt: Number(item.amount),
-          GstRt: Number(item.gst_percent || 18),
-          CgstAmt: item.gst_amount ? Number(item.gst_amount) / 2 : 0,
-          SgstAmt: item.gst_amount ? Number(item.gst_amount) / 2 : 0,
-          IgstAmt: 0,
-        })),
+        item_list: items.map((item: any, idx: number) => {
+          const itemVal = Number(item.amount);
+          const itemGst = item.gst_amount ? Number(item.gst_amount) : 0;
+          return {
+            item_serial_number: (idx + 1).toString(),
+            product_description: item.finished_products?.product_name || "Industrial Product",
+            is_service: "N",
+            hsn_code: item.finished_products?.hsn_code || "392011", // Default 6 digit HSN code
+            bar_code: "",
+            quantity: Number(item.quantity),
+            free_quantity: 0,
+            unit: "KGS",
+            unit_price: Number(item.rate),
+            total_amount: itemVal,
+            pre_tax_value: 0,
+            discount: 0,
+            other_charge: 0,
+            assessable_value: itemVal,
+            gst_rate: Number(item.gst_percent || 18),
+            igst_amount: 0,
+            cgst_amount: itemGst / 2,
+            sgst_amount: itemGst / 2,
+            cess_rate: 0,
+            cess_amount: 0,
+            cess_nonadvol_amount: 0,
+            state_cess_rate: 0,
+            state_cess_amount: 0,
+            state_cess_nonadvol_amount: 0,
+            total_item_value: itemVal + itemGst
+          };
+        }),
       };
 
-      const encryptedData = this.encryptAes256Ecb(JSON.stringify(einvoicePayload), decryptedSekBase64);
-
-      console.log(`[EInvoiceService] Hitting E-Invoice Generation API: ${creds.baseUrl}/invoice`);
-      const apiRes = await fetch(`${creds.baseUrl}/invoice`, {
+      console.log(`[EInvoiceService] Hitting Masters India E-Invoice API: ${creds.baseUrl}/einvoice/`);
+      const apiRes = await fetch(`${creds.baseUrl}/einvoice/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'client-id': creds.clientId,
-          'client-secret': creds.clientSecret,
-          'authtoken': authtoken,
-          'gstin': creds.gstin,
+          'Authorization': `JWT ${token}`,
         },
-        body: JSON.stringify({
-          action: 'GENERATE',
-          data: encryptedData,
-        }),
+        body: JSON.stringify(einvoicePayload),
       });
 
       if (!apiRes.ok) {
         const errText = await apiRes.text();
-        throw new Error(`E-Invoice API responded with status ${apiRes.status}: ${errText}`);
+        throw new Error(`Masters India E-Invoice API failed with status ${apiRes.status}: ${errText}`);
       }
 
-      const rawResponse = await apiRes.json();
-      
-      let responseData = rawResponse;
-      if (rawResponse.data && typeof rawResponse.data === 'string') {
-        const decryptedData = this.decryptAes256Ecb(rawResponse.data, decryptedSekBase64);
-        responseData = JSON.parse(decryptedData);
-      }
+      const responseData = await apiRes.json();
+      const result = responseData.results;
 
-      if (responseData.status === '1' || responseData.Irn) {
+      if (result.status === 'Success' && result.message && result.message.Irn) {
         return {
-          irn: responseData.Irn,
-          ack_no: responseData.AckNo?.toString(),
-          ack_date: responseData.AckDt,
+          irn: result.message.Irn,
+          ack_no: result.message.AckNo?.toString(),
+          ack_date: result.message.AckDt,
           status: 'GENERATED',
         };
       } else {
-        const errorMsg = responseData.error?.errorMsg || responseData.errorMsg || 'Unknown error occurred';
+        const errorMsg = result.errorMessage || result.message || 'Unknown GSP error occurred';
         return {
           status: 'FAILED',
-          error: errorMsg,
+          error: typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg),
         };
       }
     } catch (error: any) {
@@ -233,10 +217,8 @@ export class EInvoiceService {
   }
 
   private static simulateMockEInvoice(invoice: any): EInvoiceResponse {
-    // Generate a 64-character hex IRN string (Standard IRN is 64 hex characters)
-    const irn = crypto.randomBytes(32).toString('hex');
-    
-    // Ack No is standard 15 digit number
+    // Generate a 64-character hex IRN string
+    const irn = require('crypto').randomBytes(32).toString('hex');
     const ack_no = Math.floor(100000000000000 + Math.random() * 900000000000000).toString();
     const ack_date = new Date().toISOString();
 
