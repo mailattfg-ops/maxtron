@@ -10,24 +10,24 @@ export interface EInvoiceResponse {
 
 export class EInvoiceService {
   private static getCredentials() {
-    const env = (process.env.EINVOICE_ENV || 'sandbox').toLowerCase();
+    const env = (process.env.EINVOICE_ENV || process.env.EWB_ENV || 'sandbox').toLowerCase();
     const isProd = env === 'production' || env === 'prod';
     
     // Masters India GSP credentials
     if (isProd) {
       return {
-        username: process.env.MI_GSP_PROD_USERNAME || process.env.MI_GSP_USERNAME || '',
-        password: process.env.MI_GSP_PROD_PASSWORD || process.env.MI_GSP_PASSWORD || '',
-        gstin: process.env.MI_GSP_PROD_GSTIN || process.env.MI_GSP_GSTIN || '',
-        baseUrl: process.env.MI_GSP_PROD_BASE_URL || 'https://api.mastersindia.co/api/v1',
+        username: process.env.EINVOICE_PROD_USERNAME || process.env.MI_GSP_PROD_USERNAME || process.env.MI_GSP_USERNAME || '',
+        password: process.env.EINVOICE_PROD_PASSWORD || process.env.MI_GSP_PROD_PASSWORD || process.env.MI_GSP_PASSWORD || '',
+        gstin: process.env.EINVOICE_PROD_GSTIN || process.env.MI_GSP_PROD_GSTIN || process.env.MI_GSP_GSTIN || '',
+        baseUrl: process.env.EINVOICE_PROD_BASE_URL || process.env.MI_GSP_PROD_BASE_URL || 'https://api.mastersindia.co/api/v1',
         environment: 'production'
       };
     } else {
       return {
-        username: process.env.MI_GSP_SANDBOX_USERNAME || process.env.MI_GSP_USERNAME || 'aman@mastersindia.co',
-        password: process.env.MI_GSP_SANDBOX_PASSWORD || process.env.MI_GSP_PASSWORD || 'Miitspl@123',
-        gstin: process.env.MI_GSP_SANDBOX_GSTIN || process.env.MI_GSP_GSTIN || '09AAAPG7885R002',
-        baseUrl: process.env.MI_GSP_SANDBOX_BASE_URL || 'https://sandb-api.mastersindia.co/api/v1',
+        username: process.env.EINVOICE_SANDBOX_USERNAME || process.env.MI_GSP_SANDBOX_USERNAME || process.env.MI_GSP_USERNAME || '',
+        password: process.env.EINVOICE_SANDBOX_PASSWORD || process.env.MI_GSP_SANDBOX_PASSWORD || process.env.MI_GSP_PASSWORD || '',
+        gstin: process.env.EINVOICE_SANDBOX_GSTIN || process.env.MI_GSP_SANDBOX_GSTIN || process.env.MI_GSP_GSTIN || '',
+        baseUrl: process.env.EINVOICE_SANDBOX_BASE_URL || process.env.MI_GSP_SANDBOX_BASE_URL || 'https://sandb-api.mastersindia.co/api/v1',
         environment: 'sandbox'
       };
     }
@@ -91,8 +91,11 @@ export class EInvoiceService {
       }
 
       // Step B: Build standard e-Invoice schema payload (Version 1.1)
-      const totalAmount = Number(invoice.total_amount);
+      const docNo = String(invoice.invoice_number || invoice.order_number || 'INV-0001').substring(0, 16);
+      const docDate = invoice.invoice_date || invoice.order_date || new Date().toISOString();
+      const totalAmount = Number(invoice.total_amount || invoice.total_value || 0);
       const taxAmount = invoice.tax_amount ? Number(invoice.tax_amount) : 0;
+      const sellerStateCode = creds.gstin ? creds.gstin.substring(0, 2) : "27";
       
       const einvoicePayload = {
         user_gstin: creds.gstin,
@@ -105,8 +108,8 @@ export class EInvoiceService {
         },
         document_details: {
           document_type: "INV",
-          document_number: invoice.invoice_number.substring(0, 16), // Max 16 characters
-          document_date: new Date(invoice.invoice_date).toLocaleDateString('en-GB') // "DD/MM/YYYY"
+          document_number: docNo, // Max 16 characters
+          document_date: new Date(docDate).toLocaleDateString('en-GB') // "DD/MM/YYYY"
         },
         seller_details: {
           gstin: creds.gstin,
@@ -114,9 +117,9 @@ export class EInvoiceService {
           trade_name: "Maxtron",
           address1: "Maxtron Industrial Area",
           address2: "Phase II",
-          location: "Mumbai",
-          pincode: 400001,
-          state_code: "27",
+          location: "Noida",
+          pincode: 201301,
+          state_code: sellerStateCode,
         },
         buyer_details: {
           gstin: customer.gst_no,
@@ -126,8 +129,8 @@ export class EInvoiceService {
           address2: "",
           location: customer.addresses?.[0]?.city || "Mumbai",
           pincode: parseInt(customer.addresses?.[0]?.zip_code) || 400001,
-          place_of_supply: customer.gst_no.substring(0, 2), // First 2 digits of buyer GSTIN is state code
-          state_code: customer.gst_no.substring(0, 2),
+          place_of_supply: customer.gst_no ? customer.gst_no.substring(0, 2) : sellerStateCode, // First 2 digits of buyer GSTIN
+          state_code: customer.gst_no ? customer.gst_no.substring(0, 2) : sellerStateCode,
         },
         value_details: {
           total_assessable_value: totalAmount,
