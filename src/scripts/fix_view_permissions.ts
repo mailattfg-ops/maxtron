@@ -35,9 +35,10 @@ async function run() {
             console.log("✅ View v_sales_invoice_balances found!");
         }
 
-        console.log("⚙️ Granting SELECT on public.v_sales_invoice_balances to public roles...");
+        console.log("⚙️ Granting SELECT on public.v_sales_invoice_balances and v_purchase_entry_balances to public roles...");
         await client.query(`
             GRANT SELECT ON public.v_sales_invoice_balances TO anon, authenticated, service_role;
+            GRANT SELECT ON public.v_purchase_entry_balances TO anon, authenticated, service_role;
         `);
         console.log("✅ View permissions granted successfully!");
 
