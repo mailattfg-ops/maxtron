@@ -11,10 +11,10 @@ export interface EwbResponse {
 export class EwbService {
   private static getCredentials() {
     return {
-      username: process.env.MI_GSP_PROD_USERNAME || process.env.MI_GSP_USERNAME || '',
-      password: process.env.MI_GSP_PROD_PASSWORD || process.env.MI_GSP_PASSWORD || '',
-      gstin: process.env.MI_GSP_PROD_GSTIN || process.env.MI_GSP_GSTIN || '',
-      baseUrl: process.env.MI_GSP_PROD_BASE_URL || 'https://prod-api.mastersindia.co/api/v1',
+      username: process.env.EWB_PROD_USERNAME || process.env.MI_GSP_PROD_USERNAME || process.env.MI_GSP_USERNAME || '',
+      password: process.env.EWB_PROD_PASSWORD || process.env.MI_GSP_PROD_PASSWORD || process.env.MI_GSP_PASSWORD || '',
+      gstin: process.env.EWB_PROD_GSTIN || process.env.MI_GSP_PROD_GSTIN || process.env.MI_GSP_GSTIN || '',
+      baseUrl: process.env.EWB_PROD_BASE_URL || process.env.MI_GSP_PROD_BASE_URL || 'https://prod-api.mastersindia.co/api/v1',
       environment: 'production'
     };
   }
@@ -50,7 +50,7 @@ export class EwbService {
       // Check if it's Mock Mode
       if (this.isMockMode()) {
         const creds = this.getCredentials();
-        console.log(`[EwbService] Running in Mock Mode (${creds.environment}) for Invoice ${invoice.invoice_number}`);
+        console.log(`[EwbService] Running in Mock Mode (${creds.environment}) for Invoice ${invoice.invoice_number || invoice.order_number}`);
         return this.simulateMockEwb(invoice);
       }
 
@@ -80,7 +80,9 @@ export class EwbService {
       }
 
       // Step B: Build standard e-Way Bill request schema
-      const totalAmount = Number(invoice.total_amount);
+      const docNo = String(invoice.invoice_number || invoice.order_number || 'INV-0001').substring(0, 16);
+      const docDate = invoice.invoice_date || invoice.order_date || new Date().toISOString();
+      const totalAmount = Number(invoice.total_amount || invoice.total_value || 0);
       const taxAmount = invoice.tax_amount ? Number(invoice.tax_amount) : 0;
       
       const ewbPayload = {
@@ -89,8 +91,8 @@ export class EwbService {
         sub_supply_type: "Supply",
         sub_supply_description: "",
         document_type: "Tax Invoice",
-        document_number: invoice.invoice_number.substring(0, 16),
-        document_date: new Date(invoice.invoice_date).toLocaleDateString('en-GB'), // "DD/MM/YYYY" format
+        document_number: docNo,
+        document_date: new Date(docDate).toLocaleDateString('en-GB'), // "DD/MM/YYYY" format
         gstin_of_consignor: creds.gstin,
         legal_name_of_consignor: "Maxtron Industries",
         address1_of_consignor: "Maxtron Industrial Area",

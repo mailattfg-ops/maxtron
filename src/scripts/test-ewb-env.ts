@@ -1,20 +1,20 @@
 import { EwbService } from '../modules/maxtron/services/ewbService';
+import { EInvoiceService } from '../modules/maxtron/services/eInvoiceService';
 import dotenv from 'dotenv';
-import path from 'path';
 
-// Load environment variables
 dotenv.config();
 
 const mockOrder = {
+  invoice_number: "INV-2026-0001",
   order_number: "ORD-2026-0001",
-  order_date: "2026-06-24",
-  total_value: 45000,
+  invoice_date: "2026-06-24",
+  total_amount: 45000,
   tax_amount: 8100,
   net_amount: 53100,
   trans_distance: 120,
   trans_mode: "1",
   vehicle_no: "MH-12-AB-1234",
-  vehicle_type: "R",
+  vehicle_type: "Regular",
   transporter_id: "27AAAAA1111A1Z1",
   transporter_name: "Blue Dart Logistics"
 };
@@ -32,82 +32,77 @@ const mockItems = [
 ];
 
 async function runTests() {
-  console.log("🧪 Testing Dynamic Environment Configurations for E-Way Bill...");
+  console.log("================================================================");
+  console.log("🧪 TESTING SANDBOX, MOCK & LIVE API INTEGRATIONS FOR GST / EWB");
+  console.log("================================================================");
   
-  // Save original env values
   const originalEnv = { ...process.env };
 
   try {
     // ----------------------------------------------------
-    // Scenario 1: EWB_ENV=sandbox, No Credentials (Mock Fallback)
+    // Scenario 1: Mock Mode Verification (EWB & E-Invoice)
     // ----------------------------------------------------
-    console.log("\n--- Scenario 1: Sandbox with No Credentials (Mock Staging) ---");
+    console.log("\n--- SCENARIO 1: MOCK MODE VERIFICATION ---");
+    process.env.ENABLE_LIVE_EWB = 'false';
+    process.env.ENABLE_LIVE_EINVOICE = 'false';
+    
+    console.log("EWB Mock Mode Status:", EwbService.isMockMode() ? "✅ MOCK MODE" : "❌ LIVE MODE");
+    const ewbMockRes = await EwbService.generateEwb(mockOrder, mockCustomer, mockItems);
+    console.log("EWB Status:", ewbMockRes.ewb_status);
+    console.log("EWB Number:", ewbMockRes.ewb_no);
+
+    console.log("E-Invoice Mock Mode Status:", EInvoiceService.isMockMode() ? "✅ MOCK MODE" : "❌ LIVE MODE");
+    const einvMockRes = await EInvoiceService.generateEInvoice(mockOrder, mockCustomer, mockItems);
+    console.log("E-Invoice Status:", einvMockRes.status);
+    console.log("E-Invoice IRN:", einvMockRes.irn);
+
+    // ----------------------------------------------------
+    // Scenario 2: Sandbox API Route Verification (Masters India GSP Sandbox)
+    // ----------------------------------------------------
+    console.log("\n--- SCENARIO 2: MASTERS INDIA GSP SANDBOX API ---");
+    process.env.ENABLE_LIVE_EWB = 'true';
+    process.env.ENABLE_LIVE_EINVOICE = 'true';
     process.env.EWB_ENV = 'sandbox';
-    delete process.env.EWB_SANDBOX_CLIENT_ID;
+    process.env.EINVOICE_ENV = 'sandbox';
+    process.env.MI_GSP_USERNAME = 'aman@mastersindia.co';
+    process.env.MI_GSP_PASSWORD = 'Miitspl@123';
+    process.env.MI_GSP_GSTIN = '09AAAPG7885R002';
+    process.env.MI_GSP_SANDBOX_BASE_URL = 'https://sandb-api.mastersindia.co/api/v1';
+
+    console.log("EWB Mode:", EwbService.isMockMode() ? "MOCK MODE" : "⚡ LIVE SANDBOX");
+    const ewbSbRes = await EwbService.generateEwb(mockOrder, mockCustomer, mockItems);
+    console.log("EWB Status:", ewbSbRes.ewb_status);
+    if (ewbSbRes.ewb_status === 'GENERATED') {
+      console.log("Generated EWB No:", ewbSbRes.ewb_no);
+    } else {
+      console.log("EWB Response/Error:", ewbSbRes.ewb_error);
+    }
+
+    console.log("\nE-Invoice Mode:", EInvoiceService.isMockMode() ? "MOCK MODE" : "⚡ LIVE SANDBOX");
+    const einvSbRes = await EInvoiceService.generateEInvoice(mockOrder, mockCustomer, mockItems);
+    console.log("E-Invoice Status:", einvSbRes.status);
+    if (einvSbRes.status === 'GENERATED') {
+      console.log("Generated IRN:", einvSbRes.irn);
+    } else {
+      console.log("E-Invoice Response/Error:", einvSbRes.error);
+    }
+
+    // ----------------------------------------------------
+    // Scenario 3: Missing Credentials / Fallback to Mock Mode
+    // ----------------------------------------------------
+    console.log("\n--- SCENARIO 3: NO CREDENTIALS FALLBACK TO MOCK ---");
+    process.env.ENABLE_LIVE_EWB = 'true';
+    process.env.ENABLE_LIVE_EINVOICE = 'true';
+    delete process.env.MI_GSP_USERNAME;
+    delete process.env.MI_GSP_PASSWORD;
+    delete process.env.MI_GSP_GSTIN;
     delete process.env.EWB_SANDBOX_USERNAME;
-    delete process.env.EWB_SANDBOX_PASSWORD;
-    delete process.env.EWB_SANDBOX_GSTIN;
-    delete process.env.EWB_CLIENT_ID;
-    delete process.env.EWB_USERNAME;
-    
-    console.log("Mock mode status:", EwbService.isMockMode() ? "✅ MOCK MODE" : "❌ LIVE MODE");
-    let res = await EwbService.generateEwb(mockOrder, mockCustomer, mockItems);
-    console.log("EWB Status:", res.ewb_status);
-    console.log("EWB Number:", res.ewb_no);
+    delete process.env.EINVOICE_SANDBOX_USERNAME;
 
-    // ----------------------------------------------------
-    // Scenario 2: EWB_ENV=production, No Credentials (Mock Fallback)
-    // ----------------------------------------------------
-    console.log("\n--- Scenario 2: Production with No Credentials (Mock Staging) ---");
-    process.env.EWB_ENV = 'production';
-    delete process.env.EWB_PROD_CLIENT_ID;
-    delete process.env.EWB_PROD_USERNAME;
-    delete process.env.EWB_PROD_PASSWORD;
-    delete process.env.EWB_PROD_GSTIN;
-    delete process.env.EWB_CLIENT_ID;
-    delete process.env.EWB_USERNAME;
-    
-    console.log("Mock mode status:", EwbService.isMockMode() ? "✅ MOCK MODE" : "❌ LIVE MODE");
-    res = await EwbService.generateEwb(mockOrder, mockCustomer, mockItems);
-    console.log("EWB Status:", res.ewb_status);
-    console.log("EWB Number:", res.ewb_no);
-
-    // ----------------------------------------------------
-    // Scenario 3: EWB_ENV=sandbox, Sandbox Credentials Provided (Live Sandbox Route)
-    // ----------------------------------------------------
-    console.log("\n--- Scenario 3: Sandbox Environment with Sandbox Credentials ---");
-    process.env.EWB_ENV = 'sandbox';
-    process.env.EWB_SANDBOX_CLIENT_ID = 'sb_client_123';
-    process.env.EWB_SANDBOX_CLIENT_SECRET = 'sb_secret_456';
-    process.env.EWB_SANDBOX_USERNAME = 'sb_user';
-    process.env.EWB_SANDBOX_PASSWORD = 'sb_password';
-    process.env.EWB_SANDBOX_GSTIN = '27AAAAA1111A1Z1';
-    process.env.EWB_SANDBOX_BASE_URL = 'https://sandbox.gsp.ewb.gov.in/api/v1.03';
-    
-    console.log("Mock mode status:", EwbService.isMockMode() ? "❌ MOCK MODE" : "✅ LIVE MODE");
-    res = await EwbService.generateEwb(mockOrder, mockCustomer, mockItems);
-    console.log("EWB Status:", res.ewb_status);
-    console.log("EWB Error (Should fail auth because of fake creds):", res.ewb_error);
-
-    // ----------------------------------------------------
-    // Scenario 4: EWB_ENV=production, Production Credentials Provided (Live Production Route)
-    // ----------------------------------------------------
-    console.log("\n--- Scenario 4: Production Environment with Production Credentials ---");
-    process.env.EWB_ENV = 'production';
-    process.env.EWB_PROD_CLIENT_ID = 'prod_client_123';
-    process.env.EWB_PROD_CLIENT_SECRET = 'prod_secret_456';
-    process.env.EWB_PROD_USERNAME = 'prod_user';
-    process.env.EWB_PROD_PASSWORD = 'prod_password';
-    process.env.EWB_PROD_GSTIN = '27BBBBB2222B2Z2';
-    process.env.EWB_PROD_BASE_URL = 'https://prod.gsp.ewb.gov.in/api/v1.03';
-    
-    console.log("Mock mode status:", EwbService.isMockMode() ? "❌ MOCK MODE" : "✅ LIVE MODE");
-    res = await EwbService.generateEwb(mockOrder, mockCustomer, mockItems);
-    console.log("EWB Status:", res.ewb_status);
-    console.log("EWB Error (Should fail auth because of fake creds):", res.ewb_error);
+    console.log("EWB Status (Expected Mock):", EwbService.isMockMode() ? "✅ MOCK MODE" : "❌ LIVE MODE");
+    console.log("E-Invoice Status (Expected Mock):", EInvoiceService.isMockMode() ? "✅ MOCK MODE" : "❌ LIVE MODE");
 
   } finally {
-    // Restore original env variables
     process.env = originalEnv;
   }
 }
