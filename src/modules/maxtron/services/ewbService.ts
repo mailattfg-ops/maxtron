@@ -10,27 +10,13 @@ export interface EwbResponse {
 
 export class EwbService {
   private static getCredentials() {
-    const env = (process.env.EWB_ENV || 'sandbox').toLowerCase();
-    const isProd = env === 'production' || env === 'prod';
-    
-    // Masters India GSP credentials
-    if (isProd) {
-      return {
-        username: process.env.MI_GSP_PROD_USERNAME || process.env.MI_GSP_USERNAME || '',
-        password: process.env.MI_GSP_PROD_PASSWORD || process.env.MI_GSP_PASSWORD || '',
-        gstin: process.env.MI_GSP_PROD_GSTIN || process.env.MI_GSP_GSTIN || '',
-        baseUrl: process.env.MI_GSP_PROD_BASE_URL || 'https://api.mastersindia.co/api/v1',
-        environment: 'production'
-      };
-    } else {
-      return {
-        username: process.env.MI_GSP_SANDBOX_USERNAME || process.env.MI_GSP_USERNAME || 'aman@mastersindia.co',
-        password: process.env.MI_GSP_SANDBOX_PASSWORD || process.env.MI_GSP_PASSWORD || 'Miitspl@123',
-        gstin: process.env.MI_GSP_SANDBOX_GSTIN || process.env.MI_GSP_GSTIN || '05AAABB0639G1Z8',
-        baseUrl: process.env.MI_GSP_SANDBOX_BASE_URL || 'https://sandb-api.mastersindia.co/api/v1',
-        environment: 'sandbox'
-      };
-    }
+    return {
+      username: process.env.MI_GSP_PROD_USERNAME || process.env.MI_GSP_USERNAME || '',
+      password: process.env.MI_GSP_PROD_PASSWORD || process.env.MI_GSP_PASSWORD || '',
+      gstin: process.env.MI_GSP_PROD_GSTIN || process.env.MI_GSP_GSTIN || '',
+      baseUrl: process.env.MI_GSP_PROD_BASE_URL || 'https://prod-api.mastersindia.co/api/v1',
+      environment: 'production'
+    };
   }
 
   public static isMockMode(): boolean {
@@ -217,5 +203,87 @@ export class EwbService {
       ewb_valid_till: validTill.toISOString(),
       ewb_status: 'GENERATED',
     };
+  }
+
+  /**
+   * Cancel E-Way Bill via Masters India
+   */
+  public static async cancelEwb(
+    invoice: any,
+    reasonCode: string,
+    remarks: string
+  ): Promise<{ ewb_status: 'CANCELLED' | 'FAILED'; ewb_error?: string }> {
+    try {
+      if (this.isMockMode()) {
+        console.log(`[EwbService] Simulating E-Way Bill cancellation (Mock Mode) for Invoice ${invoice.invoice_number}`);
+        return { ewb_status: 'CANCELLED' };
+      }
+
+      const creds = this.getCredentials();
+
+      const authRes = await fetch(`${creds.baseUrl}/token-auth/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: creds.username,
+          password: creds.password,
+        }),
+      });
+
+      if (!authRes.ok) {
+        const errText = await authRes.text();
+        throw new Error(`Masters India authentication failed: ${errText}`);
+      }
+
+      const authData = await authRes.json();
+      const token = authData.token;
+
+      if (!token) {
+        throw new Error(`Invalid response from Masters India GSP: missing auth token.`);
+      }
+
+      const cancelPayload = {
+        userGstin: creds.gstin,
+        ewbNo: Number(invoice.ewb_no),
+        cancelRsnCode: Number(reasonCode),
+        cancelRemark: remarks,
+      };
+
+      console.log(`[EwbService] Hitting Masters India Cancel E-Way Bill API: ${creds.baseUrl}/ewaybill/cancel/`);
+      const apiRes = await fetch(`${creds.baseUrl}/ewaybill/cancel/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `JWT ${token}`,
+        },
+        body: JSON.stringify(cancelPayload),
+      });
+
+      if (!apiRes.ok) {
+        const errText = await apiRes.text();
+        throw new Error(`Masters India E-Way Bill Cancel API failed with status ${apiRes.status}: ${errText}`);
+      }
+
+      const responseData = await apiRes.json();
+      const result = responseData.results;
+
+      if (result.status === 'Success') {
+        return {
+          ewb_status: 'CANCELLED',
+        };
+      } else {
+        const errorDetail = result.errorMessage || result.message || 'Unknown GSP error occurred during EWB cancellation';
+        return {
+          ewb_status: 'FAILED',
+          ewb_error: typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail),
+        };
+      }
+    } catch (error: any) {
+      console.error('[EwbService] Error in E-Way Bill cancellation:', error);
+      return {
+        ewb_status: 'FAILED',
+        ewb_error: `Connection error: ${error.message}`,
+      };
+    }
   }
 }

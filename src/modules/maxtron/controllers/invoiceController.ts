@@ -34,12 +34,28 @@ export const invoiceController = {
 
     create: async (req: Request, res: Response) => {
         try {
-            const data = await InvoiceModel.create(req.body);
+            // Auto-determine invoice_type if not explicitly provided
+            const payload = { ...req.body };
+            if (!payload.invoice_type) {
+                if (payload.customer_id) {
+                    const { data: cust } = await supabase
+                        .from('customers')
+                        .select('gst_no')
+                        .eq('id', payload.customer_id)
+                        .single();
+                    payload.invoice_type = cust?.gst_no ? 'B2B' : 'B2C';
+                } else {
+                    payload.invoice_type = 'B2B';
+                }
+            }
+
+            const data = await InvoiceModel.create(payload);
             let finalData = data;
 
             // Trigger automatically based on B2B / B2C and Amount conditions
             const enriched = await getEnrichedInvoice(data.id);
-            const isB2B = !!enriched.customers?.gst_no;
+            const invType = (enriched.invoice_type || (enriched.customers?.gst_no ? 'B2B' : 'B2C')).toUpperCase();
+            const isB2B = invType === 'B2B';
             const netAmount = Number(enriched.net_amount);
 
             let eInvoiceResult: any = null;
@@ -98,7 +114,8 @@ export const invoiceController = {
 
             // Re-trigger conditionally on update
             const enriched = await getEnrichedInvoice(id);
-            const isB2B = !!enriched.customers?.gst_no;
+            const invType = (enriched.invoice_type || (enriched.customers?.gst_no ? 'B2B' : 'B2C')).toUpperCase();
+            const isB2B = invType === 'B2B';
             const netAmount = Number(enriched.net_amount);
 
             let eInvoiceResult: any = null;
@@ -208,6 +225,72 @@ export const invoiceController = {
             if (updateErr) throw new Error(updateErr.message);
 
             res.json({ success: true, data: updated[0] });
+        } catch (error: any) {
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    cancelEInvoice: async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const { reasonCode, remarks } = req.body;
+            const invoice = await getEnrichedInvoice(id);
+
+            if (!invoice.einvoice_irn) {
+                return res.status(400).json({ success: false, message: 'Invoice does not have a generated IRN to cancel.' });
+            }
+
+            console.log(`[invoiceController] Cancelling e-Invoice for Invoice ID: ${id}`);
+            const result = await EInvoiceService.cancelEInvoice(invoice, reasonCode || '2', remarks || 'Cancelled from ERP');
+
+            if (result.status === 'CANCELLED') {
+                const { data: updated, error: updateErr } = await supabase
+                    .from('sales_invoices')
+                    .update({
+                        einvoice_status: 'CANCELLED',
+                        einvoice_error: null
+                    })
+                    .eq('id', id)
+                    .select();
+
+                if (updateErr) throw new Error(updateErr.message);
+                res.json({ success: true, data: updated[0] });
+            } else {
+                res.status(400).json({ success: false, message: result.error || 'Failed to cancel e-Invoice' });
+            }
+        } catch (error: any) {
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    cancelEwb: async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const { reasonCode, remarks } = req.body;
+            const invoice = await getEnrichedInvoice(id);
+
+            if (!invoice.ewb_no) {
+                return res.status(400).json({ success: false, message: 'Invoice does not have a generated E-Way Bill to cancel.' });
+            }
+
+            console.log(`[invoiceController] Cancelling E-Way Bill for Invoice ID: ${id}`);
+            const result = await EwbService.cancelEwb(invoice, reasonCode || '3', remarks || 'Cancelled from ERP');
+
+            if (result.ewb_status === 'CANCELLED') {
+                const { data: updated, error: updateErr } = await supabase
+                    .from('sales_invoices')
+                    .update({
+                        ewb_status: 'CANCELLED',
+                        ewb_error: null
+                    })
+                    .eq('id', id)
+                    .select();
+
+                if (updateErr) throw new Error(updateErr.message);
+                res.json({ success: true, data: updated[0] });
+            } else {
+                res.status(400).json({ success: false, message: result.ewb_error || 'Failed to cancel E-Way Bill' });
+            }
         } catch (error: any) {
             res.status(500).json({ success: false, message: error.message });
         }

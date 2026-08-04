@@ -10,27 +10,13 @@ export interface EInvoiceResponse {
 
 export class EInvoiceService {
   private static getCredentials() {
-    const env = (process.env.EINVOICE_ENV || 'sandbox').toLowerCase();
-    const isProd = env === 'production' || env === 'prod';
-    
-    // Masters India GSP credentials
-    if (isProd) {
-      return {
-        username: process.env.MI_GSP_PROD_USERNAME || process.env.MI_GSP_USERNAME || '',
-        password: process.env.MI_GSP_PROD_PASSWORD || process.env.MI_GSP_PASSWORD || '',
-        gstin: process.env.MI_GSP_PROD_GSTIN || process.env.MI_GSP_GSTIN || '',
-        baseUrl: process.env.MI_GSP_PROD_BASE_URL || 'https://api.mastersindia.co/api/v1',
-        environment: 'production'
-      };
-    } else {
-      return {
-        username: process.env.MI_GSP_SANDBOX_USERNAME || process.env.MI_GSP_USERNAME || 'aman@mastersindia.co',
-        password: process.env.MI_GSP_SANDBOX_PASSWORD || process.env.MI_GSP_PASSWORD || 'Miitspl@123',
-        gstin: process.env.MI_GSP_SANDBOX_GSTIN || process.env.MI_GSP_GSTIN || '09AAAPG7885R002',
-        baseUrl: process.env.MI_GSP_SANDBOX_BASE_URL || 'https://sandb-api.mastersindia.co/api/v1',
-        environment: 'sandbox'
-      };
-    }
+    return {
+      username: process.env.MI_GSP_PROD_USERNAME || process.env.MI_GSP_USERNAME || '',
+      password: process.env.MI_GSP_PROD_PASSWORD || process.env.MI_GSP_PASSWORD || '',
+      gstin: process.env.MI_GSP_PROD_GSTIN || process.env.MI_GSP_GSTIN || '',
+      baseUrl: process.env.MI_GSP_PROD_BASE_URL || 'https://prod-api.mastersindia.co/api/v1',
+      environment: 'production'
+    };
   }
 
   public static isMockMode(): boolean {
@@ -228,5 +214,87 @@ export class EInvoiceService {
       ack_date,
       status: 'GENERATED',
     };
+  }
+
+  /**
+   * Cancel E-Invoice via Masters India
+   */
+  public static async cancelEInvoice(
+    invoice: any,
+    reasonCode: string,
+    remarks: string
+  ): Promise<{ status: 'CANCELLED' | 'FAILED'; error?: string }> {
+    try {
+      if (this.isMockMode()) {
+        console.log(`[EInvoiceService] Simulating E-Invoice cancellation (Mock Mode) for Invoice ${invoice.invoice_number}`);
+        return { status: 'CANCELLED' };
+      }
+
+      const creds = this.getCredentials();
+
+      const authRes = await fetch(`${creds.baseUrl}/token-auth/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: creds.username,
+          password: creds.password,
+        }),
+      });
+
+      if (!authRes.ok) {
+        const errText = await authRes.text();
+        throw new Error(`Masters India authentication failed: ${errText}`);
+      }
+
+      const authData = await authRes.json();
+      const token = authData.token;
+
+      if (!token) {
+        throw new Error(`Invalid response from Masters India GSP: missing auth token.`);
+      }
+
+      const cancelPayload = {
+        user_gstin: creds.gstin,
+        irn: invoice.einvoice_irn,
+        cnl_rsn: reasonCode,
+        cnl_rem: remarks,
+      };
+
+      console.log(`[EInvoiceService] Hitting Masters India Cancel E-Invoice API: ${creds.baseUrl}/einvoice/cancel/`);
+      const apiRes = await fetch(`${creds.baseUrl}/einvoice/cancel/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `JWT ${token}`,
+        },
+        body: JSON.stringify(cancelPayload),
+      });
+
+      if (!apiRes.ok) {
+        const errText = await apiRes.text();
+        throw new Error(`Masters India E-Invoice Cancel API failed with status ${apiRes.status}: ${errText}`);
+      }
+
+      const responseData = await apiRes.json();
+      const result = responseData.results;
+
+      if (result.status === 'Success') {
+        return {
+          status: 'CANCELLED',
+        };
+      } else {
+        const errorMsg = result.errorMessage || result.message || 'Unknown GSP error occurred during cancellation';
+        return {
+          status: 'FAILED',
+          error: typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg),
+        };
+      }
+    } catch (error: any) {
+      console.error('[EInvoiceService] Error in E-Invoice cancellation:', error);
+      return {
+        status: 'FAILED',
+        error: `Connection error: ${error.message}`,
+      };
+    }
   }
 }
