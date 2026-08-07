@@ -6,12 +6,10 @@ import path from 'path';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+const connectionString = process.env.SUPABASE_DB_URL || 'postgresql://postgres.jylkzihuozugqfjqvhhe:ccRzE_%5EUsVBAd8*@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres';
+
 const pool = new Pool({
-  host: 'aws-1-ap-southeast-2.pooler.supabase.com',
-  port: 6543,
-  user: 'postgres.jylkzihuozugqfjqvhhe',
-  password: 'ccRzE_^UsVBAd8*',
-  database: 'postgres',
+  connectionString,
   ssl: { rejectUnauthorized: false }
 });
 
