@@ -32,6 +32,16 @@ export const invoiceController = {
         }
     },
 
+    getNextNumber: async (req: Request, res: Response) => {
+        try {
+            const { company_id } = req.query;
+            const invoiceNumber = await InvoiceModel.getNextNumber(company_id as string);
+            res.json({ success: true, invoice_number: invoiceNumber });
+        } catch (error: any) {
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
     create: async (req: Request, res: Response) => {
         try {
             // Auto-determine invoice_type if not explicitly provided
