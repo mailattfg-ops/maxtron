@@ -70,12 +70,12 @@ export const InvoiceModel = {
         if (error) throw new Error(error.message);
 
         if (items && items.length > 0) {
-            const itemsToInsert = items.map((item: any) => {
-                const { amount, ...rest } = item;
-                const sanitizedItem = { ...rest, invoice_id: data.id };
-                if (sanitizedItem.product_id === '') sanitizedItem.product_id = null;
-                return sanitizedItem;
-            });
+            const itemsToInsert = items.map((item: any) => ({
+                invoice_id: data.id,
+                product_id: item.product_id === '' ? null : item.product_id,
+                quantity: Number(item.quantity) || 0,
+                rate: Number(item.rate) || 0
+            }));
 
             const { error: itemError } = await supabase
                 .from('sales_invoice_items')
@@ -101,11 +101,12 @@ export const InvoiceModel = {
             await supabase.from('sales_invoice_items').delete().eq('invoice_id', id);
 
             if (items.length > 0) {
-                const itemsToInsert = items.map((item: any) => {
-                    const { amount, ...rest } = item;
-                    const sanitizedItem = { ...rest, invoice_id: id };
-                    return sanitizedItem;
-                });
+                const itemsToInsert = items.map((item: any) => ({
+                    invoice_id: id,
+                    product_id: item.product_id === '' ? null : item.product_id,
+                    quantity: Number(item.quantity) || 0,
+                    rate: Number(item.rate) || 0
+                }));
 
                 const { error: itemError } = await supabase
                     .from('sales_invoice_items')

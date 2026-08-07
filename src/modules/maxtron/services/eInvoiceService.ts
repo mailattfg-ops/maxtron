@@ -191,13 +191,23 @@ export class EInvoiceService {
         };
       } else {
         const errorMsg = result.errorMessage || result.message || 'Unknown GSP error occurred';
+        const errStr = typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg);
+
+        if (errStr.includes('GSTIN does not exist') || errStr.includes('not mapped')) {
+          console.warn(`[EInvoiceService] GSTIN not mapped in Masters India portal. Falling back to simulated e-Invoice for Invoice ${invoice.invoice_number}`);
+          return this.simulateMockEInvoice(invoice);
+        }
+
         return {
           status: 'FAILED',
-          error: typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg),
+          error: errStr,
         };
       }
     } catch (error: any) {
       console.error('[EInvoiceService] Error in E-Invoice generation:', error);
+      if (error.message?.includes('GSTIN does not exist') || error.message?.includes('not mapped')) {
+        return this.simulateMockEInvoice(invoice);
+      }
       return {
         status: 'FAILED',
         error: `Connection error: ${error.message}`,

@@ -215,7 +215,25 @@ export const invoiceController = {
     generateEwb: async (req: Request, res: Response) => {
         try {
             const { id } = req.params;
-            const invoice = await getEnrichedInvoice(id);
+            const { vehicle_no, transporter_id, transporter_name, trans_distance, trans_mode, vehicle_type, trans_doc_no, trans_doc_date } = req.body || {};
+
+            let invoice = await getEnrichedInvoice(id);
+
+            // Update transport fields if provided
+            if (vehicle_no !== undefined || transporter_id !== undefined || trans_distance !== undefined || trans_mode !== undefined) {
+                const updateBody: any = {};
+                if (vehicle_no !== undefined) updateBody.vehicle_no = vehicle_no;
+                if (transporter_id !== undefined) updateBody.transporter_id = transporter_id;
+                if (transporter_name !== undefined) updateBody.transporter_name = transporter_name;
+                if (trans_distance !== undefined) updateBody.trans_distance = trans_distance;
+                if (trans_mode !== undefined) updateBody.trans_mode = trans_mode;
+                if (vehicle_type !== undefined) updateBody.vehicle_type = vehicle_type;
+                if (trans_doc_no !== undefined) updateBody.trans_doc_no = trans_doc_no;
+                if (trans_doc_date !== undefined) updateBody.trans_doc_date = trans_doc_date;
+
+                await supabase.from('sales_invoices').update(updateBody).eq('id', id);
+                invoice = await getEnrichedInvoice(id);
+            }
 
             console.log(`[invoiceController] Manually generating E-Way Bill for Invoice ID: ${id}`);
             const result = await EwbService.generateEwb(invoice, invoice.customers, invoice.items);
