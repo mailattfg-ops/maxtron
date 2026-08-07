@@ -1,4 +1,6 @@
 // Backend Entry Point - Diagnostic Restart: 2026-06-24 09:55
+import dns from 'dns';
+dns.setDefaultResultOrder('ipv4first');
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';

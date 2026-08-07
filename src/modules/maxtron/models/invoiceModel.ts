@@ -21,6 +21,33 @@ export const InvoiceModel = {
         return data || [];
     },
 
+    getNextNumber: async (companyId?: string) => {
+        let query = supabase.from('sales_invoices').select('invoice_number');
+        if (companyId) {
+            query = query.eq('company_id', companyId);
+        }
+        const { data, error } = await query;
+        if (error) throw new Error(error.message);
+
+        let maxNum = 0;
+        if (data && data.length > 0) {
+            for (const row of data) {
+                if (row.invoice_number) {
+                    const match = row.invoice_number.match(/^MP(\d+)$/i);
+                    if (match) {
+                        const num = parseInt(match[1], 10);
+                        if (!isNaN(num) && num > maxNum) {
+                            maxNum = num;
+                        }
+                    }
+                }
+            }
+        }
+
+        const nextNum = maxNum + 1;
+        return `MP${String(nextNum).padStart(3, '0')}`;
+    },
+
     create: async (invoiceData: any) => {
         const { items, ...header } = invoiceData;
 
@@ -29,6 +56,10 @@ export const InvoiceModel = {
         ['customer_id', 'executive_id', 'order_id', 'company_id'].forEach(f => {
             if (sanitizedHeader[f] === '') sanitizedHeader[f] = null;
         });
+
+        if (!sanitizedHeader.invoice_number || !sanitizedHeader.invoice_number.trim()) {
+            sanitizedHeader.invoice_number = await InvoiceModel.getNextNumber(sanitizedHeader.company_id);
+        }
 
         const { data, error } = await supabase
             .from('sales_invoices')
