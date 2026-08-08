@@ -21,6 +21,16 @@ const getEnrichedOrder = async (id: string) => {
 };
 
 export const salesController = {
+    getNextNumber: async (req: Request, res: Response) => {
+        try {
+            const { company_id } = req.query;
+            const data = await SalesModel.getNextNumber(company_id as string);
+            res.json({ success: true, data });
+        } catch (error: any) {
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
     getOrders: async (req: Request, res: Response) => {
         try {
             const { company_id } = req.query;

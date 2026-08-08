@@ -51,10 +51,17 @@ export const InvoiceModel = {
     create: async (invoiceData: any) => {
         const { items, ...header } = invoiceData;
 
-        // Sanitize header
-        const sanitizedHeader = { ...header };
-        ['customer_id', 'executive_id', 'order_id', 'company_id'].forEach(f => {
-            if (sanitizedHeader[f] === '') sanitizedHeader[f] = null;
+        // Sanitize header (convert empty string dates & UUIDs to null for Postgres)
+        const sanitizedHeader: any = { ...header };
+        const nullableFields = [
+            'customer_id', 'executive_id', 'order_id', 'company_id',
+            'transporter_id', 'trans_doc_no', 'trans_doc_date',
+            'scheduled_delivery_date', 'remarks', 'vehicle_no', 'transporter_name'
+        ];
+        nullableFields.forEach(f => {
+            if (sanitizedHeader[f] === '' || sanitizedHeader[f] === undefined) {
+                sanitizedHeader[f] = null;
+            }
         });
 
         if (!sanitizedHeader.invoice_number || !sanitizedHeader.invoice_number.trim()) {
@@ -90,9 +97,22 @@ export const InvoiceModel = {
     update: async (id: string, invoiceData: any) => {
         const { items, ...header } = invoiceData;
 
+        // Sanitize header
+        const sanitizedHeader: any = { ...header };
+        const nullableFields = [
+            'customer_id', 'executive_id', 'order_id', 'company_id',
+            'transporter_id', 'trans_doc_no', 'trans_doc_date',
+            'scheduled_delivery_date', 'remarks', 'vehicle_no', 'transporter_name'
+        ];
+        nullableFields.forEach(f => {
+            if (sanitizedHeader[f] === '' || sanitizedHeader[f] === undefined) {
+                sanitizedHeader[f] = null;
+            }
+        });
+
         const { error: headerError } = await supabase
             .from('sales_invoices')
-            .update(header)
+            .update(sanitizedHeader)
             .eq('id', id);
 
         if (headerError) throw new Error(headerError.message);

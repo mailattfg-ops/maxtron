@@ -222,14 +222,14 @@ export const invoiceController = {
             // Update transport fields if provided
             if (vehicle_no !== undefined || transporter_id !== undefined || trans_distance !== undefined || trans_mode !== undefined) {
                 const updateBody: any = {};
-                if (vehicle_no !== undefined) updateBody.vehicle_no = vehicle_no;
-                if (transporter_id !== undefined) updateBody.transporter_id = transporter_id;
-                if (transporter_name !== undefined) updateBody.transporter_name = transporter_name;
-                if (trans_distance !== undefined) updateBody.trans_distance = trans_distance;
-                if (trans_mode !== undefined) updateBody.trans_mode = trans_mode;
-                if (vehicle_type !== undefined) updateBody.vehicle_type = vehicle_type;
-                if (trans_doc_no !== undefined) updateBody.trans_doc_no = trans_doc_no;
-                if (trans_doc_date !== undefined) updateBody.trans_doc_date = trans_doc_date;
+                if (vehicle_no !== undefined) updateBody.vehicle_no = vehicle_no || null;
+                if (transporter_id !== undefined) updateBody.transporter_id = transporter_id || null;
+                if (transporter_name !== undefined) updateBody.transporter_name = transporter_name || null;
+                if (trans_distance !== undefined) updateBody.trans_distance = Number(trans_distance) || 0;
+                if (trans_mode !== undefined) updateBody.trans_mode = trans_mode || '1';
+                if (vehicle_type !== undefined) updateBody.vehicle_type = vehicle_type || 'Regular';
+                if (trans_doc_no !== undefined) updateBody.trans_doc_no = trans_doc_no || null;
+                if (trans_doc_date !== undefined) updateBody.trans_doc_date = trans_doc_date && trans_doc_date.trim() !== '' ? trans_doc_date : null;
 
                 await supabase.from('sales_invoices').update(updateBody).eq('id', id);
                 invoice = await getEnrichedInvoice(id);
