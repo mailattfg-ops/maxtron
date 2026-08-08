@@ -9,6 +9,7 @@ const router = Router();
 
 // Orders
 router.get('/orders', protect, salesController.getOrders);
+router.get('/orders/next-number', protect, salesController.getNextNumber);
 router.post('/orders', protect, salesController.createOrder);
 router.put('/orders/:id', protect, salesController.updateOrder);
 router.delete('/orders/:id', protect, salesController.deleteOrder);
