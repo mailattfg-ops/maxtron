@@ -227,7 +227,7 @@ async function runTestSuite() {
   process.env.EINVOICE_ENV = 'sandbox';
   process.env.MI_GSP_USERNAME = 'aman@mastersindia.co';
   process.env.MI_GSP_PASSWORD = 'Miitspl@123';
-  process.env.MI_GSP_GSTIN = '09AAAPG7885R002';
+  process.env.MI_GSP_GSTIN = '32AUYPV8850B1Z2';
 
   const startTimeEinv = Date.now();
   const einvSb = await EInvoiceService.generateEInvoice(mockOrderData, mockCustomerData, mockItemsData);
@@ -250,7 +250,7 @@ async function runTestSuite() {
   let passedCalls = results.filter(r => r.success).length;
 
   console.log(`TOTAL ENDPOINTS TESTED: ${totalCalls}`);
-  console.log(`SUCCESSFUL ENDPOINTS  : ${passedCalls} / ${totalCalls} (${Math.round((passedCalls/totalCalls)*100)}%)\n`);
+  console.log(`SUCCESSFUL ENDPOINTS  : ${passedCalls} / ${totalCalls} (${Math.round((passedCalls / totalCalls) * 100)}%)\n`);
 
   console.log(
     "METHOD".padEnd(8) +

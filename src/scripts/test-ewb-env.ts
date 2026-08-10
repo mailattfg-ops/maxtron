@@ -35,7 +35,7 @@ async function runTests() {
   console.log("================================================================");
   console.log("🧪 TESTING SANDBOX, MOCK & LIVE API INTEGRATIONS FOR GST / EWB");
   console.log("================================================================");
-  
+
   const originalEnv = { ...process.env };
 
   try {
@@ -45,7 +45,7 @@ async function runTests() {
     console.log("\n--- SCENARIO 1: MOCK MODE VERIFICATION ---");
     process.env.ENABLE_LIVE_EWB = 'false';
     process.env.ENABLE_LIVE_EINVOICE = 'false';
-    
+
     console.log("EWB Mock Mode Status:", EwbService.isMockMode() ? "✅ MOCK MODE" : "❌ LIVE MODE");
     const ewbMockRes = await EwbService.generateEwb(mockOrder, mockCustomer, mockItems);
     console.log("EWB Status:", ewbMockRes.ewb_status);
@@ -66,7 +66,7 @@ async function runTests() {
     process.env.EINVOICE_ENV = 'sandbox';
     process.env.MI_GSP_USERNAME = 'aman@mastersindia.co';
     process.env.MI_GSP_PASSWORD = 'Miitspl@123';
-    process.env.MI_GSP_GSTIN = '09AAAPG7885R002';
+    process.env.MI_GSP_GSTIN = '32AUYPV8850B1Z2';
     process.env.MI_GSP_SANDBOX_BASE_URL = 'https://sandb-api.mastersindia.co/api/v1';
 
     console.log("EWB Mode:", EwbService.isMockMode() ? "MOCK MODE" : "⚡ LIVE SANDBOX");
