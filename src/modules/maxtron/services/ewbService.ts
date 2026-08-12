@@ -171,11 +171,7 @@ export class EwbService {
         const errorDetail = result.errorMessage || result.message || 'Unknown GSP error occurred';
         const errStr = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail);
 
-        if (errStr.includes('GSTIN does not exist') || errStr.includes('not mapped')) {
-          console.warn(`[EwbService] GSTIN not mapped in Masters India portal. Falling back to simulated EWB for Invoice ${invoice.invoice_number}`);
-          return this.simulateMockEwb(invoice);
-        }
-
+        console.error('\n❌ [EwbService] E-Way Bill Generation Failed from Masters India:', errStr);
         return {
           ewb_status: 'FAILED',
           ewb_error: errStr,
@@ -183,9 +179,6 @@ export class EwbService {
       }
     } catch (error: any) {
       console.error('[EwbService] Error in E-Way Bill generation:', error);
-      if (error.message?.includes('GSTIN does not exist') || error.message?.includes('not mapped')) {
-        return this.simulateMockEwb(invoice);
-      }
       return {
         ewb_status: 'FAILED',
         ewb_error: `Connection error: ${error.message}`,

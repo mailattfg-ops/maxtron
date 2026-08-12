@@ -93,14 +93,20 @@ export const AttendanceModel = {
         return data || [];
     },
 
-    isDuplicate: async (employeeId: string, date: string, companyId: string) => {
-        const { data, error } = await supabase
+    isDuplicate: async (employeeId: string, date: string, companyId?: string) => {
+        if (!employeeId || !date) return false;
+        const cleanDate = date.split('T')[0];
+        let query = supabase
             .from('attendance')
             .select('id')
             .eq('employee_id', employeeId)
-            .eq('date', date)
-            .eq('company_id', companyId)
-            .limit(1);
+            .eq('date', cleanDate);
+
+        if (companyId && companyId.trim() !== '') {
+            query = query.eq('company_id', companyId);
+        }
+
+        const { data, error } = await query.limit(1);
         if (error) throw new Error(error.message);
         return data && data.length > 0;
     }

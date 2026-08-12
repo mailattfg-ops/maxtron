@@ -198,32 +198,34 @@ export const FinanceController = {
             const { companyId, startDate, endDate } = req.query;
 
             const cId = companyId as string;
+            const sDate = startDate as string | undefined;
+            const eDate = endDate as string | undefined;
 
-            // Simple analytical overview logic
-            // In a real app, this would involve complex aggregations
-            const [
-                { data: sales },
-                { data: purchases },
-                { data: collections },
-                { data: payments },
-                { data: expenses }
-            ] = await Promise.all([
-                supabase.from('sales_invoices').select('net_amount').eq('company_id', cId),
-                supabase.from('purchase_entries').select('total_amount').eq('company_id', cId),
-                supabase.from('customer_collections').select('amount').eq('company_id', cId),
-                supabase.from('supplier_payments').select('amount').eq('company_id', cId),
-                supabase.from('petty_cash').select('amount').eq('company_id', cId)
+            const runQuery = async (table: string, column: string, dateColumn: string): Promise<any[]> => {
+                let q = supabase.from(table).select(column).eq('company_id', cId);
+                if (sDate) q = (q as any).gte(dateColumn, sDate);
+                if (eDate) q = (q as any).lte(dateColumn, eDate);
+                const { data } = await q;
+                return (data as any[]) || [];
+            };
+
+            const [sales, purchases, collections, payments, expenses] = await Promise.all([
+                runQuery('sales_invoices', 'net_amount', 'invoice_date'),
+                runQuery('purchase_entries', 'total_amount', 'entry_date'),
+                runQuery('customer_collections', 'amount', 'collection_date'),
+                runQuery('supplier_payments', 'amount', 'payment_date'),
+                runQuery('petty_cash', 'amount', 'expense_date')
             ]);
 
             const summary = {
-                totalSales: (sales || []).reduce((sum, item) => sum + Number(item.net_amount), 0),
-                totalPurchases: (purchases || []).reduce((sum, item) => sum + Number(item.total_amount), 0),
-                totalCollections: (collections || []).reduce((sum, item) => sum + Number(item.amount), 0),
-                totalPayments: (payments || []).reduce((sum, item) => sum + Number(item.amount), 0),
-                totalExpenses: (expenses || []).reduce((sum, item) => sum + Number(item.amount), 0),
-                cashInHand: ((collections || []).reduce((sum, item) => sum + Number(item.amount), 0)) -
-                    ((payments || []).reduce((sum, item) => sum + Number(item.amount), 0) +
-                        (expenses || []).reduce((sum, item) => sum + Number(item.amount), 0))
+                totalSales: sales.reduce((sum: number, item: any) => sum + Number(item.net_amount), 0),
+                totalPurchases: purchases.reduce((sum: number, item: any) => sum + Number(item.total_amount), 0),
+                totalCollections: collections.reduce((sum: number, item: any) => sum + Number(item.amount), 0),
+                totalPayments: payments.reduce((sum: number, item: any) => sum + Number(item.amount), 0),
+                totalExpenses: expenses.reduce((sum: number, item: any) => sum + Number(item.amount), 0),
+                cashInHand: collections.reduce((sum: number, item: any) => sum + Number(item.amount), 0) -
+                    (payments.reduce((sum: number, item: any) => sum + Number(item.amount), 0) +
+                        expenses.reduce((sum: number, item: any) => sum + Number(item.amount), 0))
             };
 
             res.json({ success: true, data: summary });

@@ -7,7 +7,6 @@ export const VehicleRepairModel = {
             .select(`
                 *,
                 vehicle:vehicle_id(registration_number),
-                mechanic:mechanic_id(name),
                 driver:driver_id(name),
                 route:route_id(
                     route_name,

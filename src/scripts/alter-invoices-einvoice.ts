@@ -32,6 +32,8 @@ async function runAlteration() {
       ADD COLUMN IF NOT EXISTS einvoice_irn VARCHAR(100) DEFAULT NULL,
       ADD COLUMN IF NOT EXISTS einvoice_ack_no VARCHAR(50) DEFAULT NULL,
       ADD COLUMN IF NOT EXISTS einvoice_ack_date TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+      ADD COLUMN IF NOT EXISTS einvoice_signed_invoice TEXT DEFAULT NULL,
+      ADD COLUMN IF NOT EXISTS einvoice_signed_qr_code TEXT DEFAULT NULL,
       ADD COLUMN IF NOT EXISTS einvoice_error TEXT DEFAULT NULL;
     `);
 
