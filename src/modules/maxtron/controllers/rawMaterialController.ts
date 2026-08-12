@@ -58,6 +58,10 @@ export const deleteRawMaterial = async (req: Request, res: Response): Promise<vo
         }
         res.status(200).json({ success: true, message: 'Raw material deleted' });
     } catch (error: any) {
-        res.status(500).json({ success: false, message: 'Failed to delete raw material', error: error.message });
+        let message = 'Failed to delete raw material';
+        if (error.message?.includes('foreign key') || error.message?.includes('violates') || error.message?.includes('constraint') || error.message?.includes('linked')) {
+            message = 'Cannot delete raw material: It is currently linked to purchase orders, receipts, or production.';
+        }
+        res.status(400).json({ success: false, message, error: error.message });
     }
 };

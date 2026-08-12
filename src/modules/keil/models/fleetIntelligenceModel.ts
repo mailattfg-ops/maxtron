@@ -53,6 +53,11 @@ export const FleetIntelligenceModel = {
 
         if (vError) throw vError;
 
+        // Determine 30-day activity window
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
         const vehicleMatrix = vehicles?.map(v => {
             let vDist = 0;
             let vFuel = 0;
@@ -69,6 +74,10 @@ export const FleetIntelligenceModel = {
 
             const efficiency = vFuel > 0 ? (vDist / vFuel).toFixed(1) : '0.0';
 
+            // Dynamic uptime: if this vehicle has any recent log it's active
+            const hasRecentLog = v.logs && v.logs.length > 0;
+            const uptimePct = hasRecentLog ? '100%' : '0%';
+
             return {
                 id: v.id,
                 registration_number: v.registration_number,
@@ -76,7 +85,7 @@ export const FleetIntelligenceModel = {
                 total_fuel: vFuel,
                 maintenance_cost: vMaintenance,
                 efficiency,
-                uptime: '98%' // Placeholder for now
+                uptime: uptimePct
             };
         });
 
@@ -97,13 +106,20 @@ export const FleetIntelligenceModel = {
 
         if (upError) throw upError;
 
+        // Calculate fleet-level uptime dynamically
+        const activeVehicleCount = vehicleMatrix?.filter(v => v.uptime !== '0%').length || 0;
+        const totalVehicleCount = count || 0;
+        const fleetUptime = totalVehicleCount > 0
+            ? ((activeVehicleCount / totalVehicleCount) * 100).toFixed(1) + '%'
+            : '0%';
+
         return {
             summary: {
                 totalDistance: totalDistance.toFixed(0),
                 totalFuel: totalFuel.toFixed(0),
                 totalMaintenance: totalMaintenance.toFixed(0),
                 activeVehicles: count || 0,
-                uptime: '98.2%' // Placeholder
+                uptime: fleetUptime
             },
             vehicleMatrix,
             upcoming: upcoming?.map((u: any) => ({

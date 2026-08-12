@@ -18,10 +18,10 @@ export const StockModel = {
         if (companyId) conQuery = conQuery.eq('company_id', companyId);
         const { data: consumptions, error: conErr } = await conQuery;
 
-        // Fetch all purchase returns where credit is received
+        // Fetch all purchase returns where return is approved, dispatched, or credited
         let retQuery = supabase.from('purchase_returns')
             .select('rm_id, quantity_returned')
-            .or('status.eq.CREDITED,status.eq.Credit Received');
+            .or('status.eq.CREDITED,status.eq.Credit Received,status.eq.APPROVED,status.eq.Approved,status.eq.DISPATCHED');
         if (companyId) retQuery = retQuery.eq('company_id', companyId);
         const { data: returns, error: retErr } = await retQuery;
 

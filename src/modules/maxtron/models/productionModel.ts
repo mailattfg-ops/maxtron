@@ -128,6 +128,47 @@ export const ProductionModel = {
     },
 
     deleteBatch: async (id: string) => {
+        // Cascade: delete all production_conversions and their items first
+        const { data: conversions } = await supabase
+            .from('production_conversions')
+            .select('id')
+            .eq('batch_id', id);
+
+        if (conversions && conversions.length > 0) {
+            const convIds = conversions.map((c: any) => c.id);
+
+            // Delete conversion items
+            await supabase
+                .from('production_conversion_items')
+                .delete()
+                .in('conversion_id', convIds);
+
+            // Delete packing records linked to conversions
+            await supabase
+                .from('production_packing')
+                .delete()
+                .in('conversion_id', convIds);
+
+            // Delete conversions
+            await supabase
+                .from('production_conversions')
+                .delete()
+                .in('id', convIds);
+        }
+
+        // Delete printing records
+        await supabase
+            .from('production_printing')
+            .delete()
+            .eq('batch_id', id);
+
+        // Delete wastage records
+        await supabase
+            .from('production_wastage')
+            .delete()
+            .eq('batch_id', id);
+
+        // Finally delete the batch
         const { error } = await supabase
             .from('production_batches')
             .delete()

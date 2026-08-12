@@ -91,16 +91,23 @@ export const CollectionModel = {
             .from('keil_collection_entries')
             .select(`
                 *,
-                header:keil_collection_headers!inner(collection_date, registration_number, driver_name, supervisor_name)
+                header:keil_collection_headers!inner(collection_date, registration_number, driver_name, supervisor_name, start_time, end_time)
             `)
             .eq('hce_id', hceId)
             .eq('is_visited', true);
 
-        if (fromDate) query = query.gte('keil_collection_headers.collection_date', fromDate);
-        if (toDate) query = query.lte('keil_collection_headers.collection_date', toDate);
-
         const { data, error } = await query.order('created_at', { ascending: false });
         if (error) throw new Error(error.message);
-        return data || [];
+
+        // Filter by date range in application layer (Supabase join column filters are unreliable)
+        let results = data || [];
+        if (fromDate) {
+            results = results.filter((r: any) => r.header?.collection_date >= fromDate);
+        }
+        if (toDate) {
+            results = results.filter((r: any) => r.header?.collection_date <= toDate);
+        }
+
+        return results;
     }
 };

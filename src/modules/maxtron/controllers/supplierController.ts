@@ -32,8 +32,14 @@ export const createSupplier = async (req: Request, res: Response): Promise<void>
         res.status(201).json({ success: true, data: newSupplier });
     } catch (error: any) {
         let message = 'Failed to create supplier';
-        if (error.message?.includes('duplicate key') && error.message?.includes('gst_no')) {
-            message = 'GST Number already exists for another supplier.';
+        if (error.message?.includes('duplicate key') || error.message?.includes('unique constraint')) {
+            if (error.message?.includes('gst_no')) {
+                message = 'GST Number already exists for another supplier.';
+            } else if (error.message?.includes('supplier_code') || error.message?.includes('code')) {
+                message = 'Vendor Identity / Supplier Code already exists for another supplier.';
+            } else {
+                message = 'A supplier with this identity or identifier already exists.';
+            }
         }
         res.status(400).json({ success: false, message, error: error.message });
     }
@@ -51,8 +57,14 @@ export const updateSupplier = async (req: Request, res: Response): Promise<void>
         res.status(200).json({ success: true, data: updatedSupplier });
     } catch (error: any) {
         let message = 'Failed to update supplier';
-        if (error.message?.includes('duplicate key') && error.message?.includes('gst_no')) {
-            message = 'GST Number already exists for another supplier.';
+        if (error.message?.includes('duplicate key') || error.message?.includes('unique constraint')) {
+            if (error.message?.includes('gst_no')) {
+                message = 'GST Number already exists for another supplier.';
+            } else if (error.message?.includes('supplier_code') || error.message?.includes('code')) {
+                message = 'Vendor Identity / Supplier Code already exists for another supplier.';
+            } else {
+                message = 'A supplier with this identity or identifier already exists.';
+            }
         }
         res.status(400).json({ success: false, message, error: error.message });
     }
