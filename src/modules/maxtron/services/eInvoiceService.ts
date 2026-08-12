@@ -4,8 +4,11 @@ export interface EInvoiceResponse {
   irn?: string;
   ack_no?: string;
   ack_date?: string;
+  signed_invoice?: string;
+  signed_qr_code?: string;
   status: 'GENERATED' | 'FAILED';
   error?: string;
+  raw_response?: any;
 }
 
 export class EInvoiceService {
@@ -81,10 +84,14 @@ export class EInvoiceService {
       const docDate = invoice.invoice_date || invoice.order_date || new Date().toISOString();
       const totalAmount = Number(invoice.total_amount || invoice.total_value || 0);
       const taxAmount = invoice.tax_amount ? Number(invoice.tax_amount) : 0;
-      const sellerStateCode = creds.gstin ? creds.gstin.substring(0, 2) : "27";
-      
+      const sellerGstin = creds.gstin || '32AUYPV8850B1Z2';
+      const sellerStateCode = sellerGstin ? sellerGstin.substring(0, 2) : "32";
+      const sellerLegalName = invoice.companies?.company_name === 'KEIL' ? "KEIL Industries Ltd." : "MAXTRON ASSOCIATES";
+      const sellerPincode = sellerStateCode === "32" ? 678001 : 201301;
+      const sellerLocation = sellerStateCode === "32" ? "Palakkad" : "Noida";
+
       const einvoicePayload = {
-        user_gstin: creds.gstin,
+        user_gstin: sellerGstin,
         data_source: "erp",
         transaction_details: {
           supply_type: "B2B",
@@ -98,13 +105,13 @@ export class EInvoiceService {
           document_date: new Date(docDate).toLocaleDateString('en-GB') // "DD/MM/YYYY"
         },
         seller_details: {
-          gstin: creds.gstin,
-          legal_name: "Maxtron Industries",
-          trade_name: "Maxtron",
+          gstin: sellerGstin,
+          legal_name: sellerLegalName,
+          trade_name: sellerLegalName,
           address1: "Maxtron Industrial Area",
-          address2: "Phase II",
-          location: "Noida",
-          pincode: 201301,
+          address2: "Industrial Estate",
+          location: sellerLocation,
+          pincode: sellerPincode,
           state_code: sellerStateCode,
         },
         buyer_details: {
@@ -180,34 +187,65 @@ export class EInvoiceService {
       }
 
       const responseData = await apiRes.json();
-      const result = responseData.results;
+      const result = responseData.results || responseData.data || responseData;
+      const msg = result.message || result.data || result;
 
-      if (result.status === 'Success' && result.message && result.message.Irn) {
-        return {
-          irn: result.message.Irn,
-          ack_no: result.message.AckNo?.toString(),
-          ack_date: result.message.AckDt,
+      const irn = msg.Irn || msg.irn || result.Irn || result.irn;
+      const ackNo = (msg.AckNo || msg.ack_no || result.AckNo || result.ack_no)?.toString();
+      const ackDt = msg.AckDt || msg.ack_date || msg.ack_dt || result.AckDt || result.ack_date;
+      const signedInvoice = msg.SignedInvoice || msg.signed_invoice || result.SignedInvoice || result.signed_invoice;
+      const signedQrCode = msg.SignedQRCode || msg.signed_qr_code || msg.SignedQrCode || result.SignedQRCode || result.signed_qr_code;
+
+      const isSuccess = (result.status === 'Success' || responseData.success === true || responseData.status_cd === '1' || Boolean(irn));
+
+      if (isSuccess && irn) {
+        const successRes: EInvoiceResponse = {
+          irn,
+          ack_no: ackNo,
+          ack_date: ackDt,
+          signed_invoice: signedInvoice,
+          signed_qr_code: signedQrCode,
           status: 'GENERATED',
+          raw_response: responseData
         };
+
+        console.log('\n================================================================================');
+        console.log('⚡ [EInvoiceService] E-INVOICE GENERATED SUCCESSFULLY');
+        console.log('--------------------------------------------------------------------------------');
+        console.log(`Invoice Number   : ${invoice.invoice_number}`);
+        console.log(`IRN              : ${irn}`);
+        console.log(`Ack Number       : ${ackNo}`);
+        console.log(`Ack Date         : ${ackDt}`);
+        console.log(`Signed Invoice   : ${signedInvoice ? (signedInvoice.substring(0, 60) + '... (' + signedInvoice.length + ' chars)') : 'N/A'}`);
+        console.log(`Signed QR Code   : ${signedQrCode ? (signedQrCode.substring(0, 60) + '... (' + signedQrCode.length + ' chars)') : 'N/A'}`);
+        console.log('--------------------------------------------------------------------------------');
+        console.log('Response Payload:');
+        console.log(JSON.stringify({
+          success: true,
+          data: {
+            Irn: irn,
+            AckNo: ackNo,
+            AckDt: ackDt,
+            SignedInvoice: signedInvoice,
+            SignedQRCode: signedQrCode
+          }
+        }, null, 2));
+        console.log('================================================================================\n');
+
+        return successRes;
       } else {
         const errorMsg = result.errorMessage || result.message || 'Unknown GSP error occurred';
         const errStr = typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg);
 
-        if (errStr.includes('GSTIN does not exist') || errStr.includes('not mapped')) {
-          console.warn(`[EInvoiceService] GSTIN not mapped in Masters India portal. Falling back to simulated e-Invoice for Invoice ${invoice.invoice_number}`);
-          return this.simulateMockEInvoice(invoice);
-        }
-
+        console.error('\n❌ [EInvoiceService] E-Invoice Generation Failed from Masters India:', errStr);
         return {
           status: 'FAILED',
           error: errStr,
+          raw_response: responseData
         };
       }
     } catch (error: any) {
       console.error('[EInvoiceService] Error in E-Invoice generation:', error);
-      if (error.message?.includes('GSTIN does not exist') || error.message?.includes('not mapped')) {
-        return this.simulateMockEInvoice(invoice);
-      }
       return {
         status: 'FAILED',
         error: `Connection error: ${error.message}`,
@@ -219,14 +257,65 @@ export class EInvoiceService {
     // Generate a 64-character hex IRN string
     const irn = require('crypto').randomBytes(32).toString('hex');
     const ack_no = Math.floor(100000000000000 + Math.random() * 900000000000000).toString();
-    const ack_date = new Date().toISOString();
+    const ack_date = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
-    return {
+    // Generate realistic simulated SignedInvoice and SignedQRCode JWT tokens
+    const mockHeader = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64');
+    const mockPayload = Buffer.from(JSON.stringify({
+      Irn: irn,
+      AckNo: Number(ack_no),
+      AckDt: ack_date,
+      DocNo: invoice.invoice_number || 'INV-MOCK',
+      TotInvVal: invoice.net_amount || invoice.total_amount || 0
+    })).toString('base64');
+    const mockSig = require('crypto').randomBytes(64).toString('base64url');
+
+    const signed_invoice = `${mockHeader}.${mockPayload}.${mockSig}`;
+    const signed_qr_code = `${mockHeader}.${mockPayload}.${mockSig}`;
+
+    const res: EInvoiceResponse = {
       irn,
       ack_no,
       ack_date,
+      signed_invoice,
+      signed_qr_code,
       status: 'GENERATED',
+      raw_response: {
+        success: true,
+        data: {
+          Irn: irn,
+          AckNo: ack_no,
+          AckDt: ack_date,
+          SignedInvoice: signed_invoice,
+          SignedQRCode: signed_qr_code
+        }
+      }
     };
+
+    console.log('\n================================================================================');
+    console.log('⚡ [EInvoiceService] E-INVOICE GENERATION (SIMULATED MOCK MODE)');
+    console.log('--------------------------------------------------------------------------------');
+    console.log(`Invoice Number   : ${invoice.invoice_number}`);
+    console.log(`IRN              : ${irn}`);
+    console.log(`Ack Number       : ${ack_no}`);
+    console.log(`Ack Date         : ${ack_date}`);
+    console.log(`Signed Invoice   : ${signed_invoice.substring(0, 60)}... (${signed_invoice.length} chars)`);
+    console.log(`Signed QR Code   : ${signed_qr_code.substring(0, 60)}... (${signed_qr_code.length} chars)`);
+    console.log('--------------------------------------------------------------------------------');
+    console.log('Response Payload:');
+    console.log(JSON.stringify({
+      success: true,
+      data: {
+        Irn: irn,
+        AckNo: ack_no,
+        AckDt: ack_date,
+        SignedInvoice: signed_invoice,
+        SignedQRCode: signed_qr_code
+      }
+    }, null, 2));
+    console.log('================================================================================\n');
+
+    return res;
   }
 
   /**

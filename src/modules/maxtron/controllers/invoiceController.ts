@@ -90,6 +90,8 @@ export const invoiceController = {
                     updateFields.einvoice_irn = eInvoiceResult.irn || null;
                     updateFields.einvoice_ack_no = eInvoiceResult.ack_no || null;
                     updateFields.einvoice_ack_date = eInvoiceResult.ack_date || null;
+                    updateFields.einvoice_signed_invoice = eInvoiceResult.signed_invoice || null;
+                    updateFields.einvoice_signed_qr_code = eInvoiceResult.signed_qr_code || null;
                     updateFields.einvoice_error = eInvoiceResult.error || null;
                 }
                 if (ewbResult) {
@@ -148,6 +150,8 @@ export const invoiceController = {
                     updateFields.einvoice_irn = eInvoiceResult.irn || null;
                     updateFields.einvoice_ack_no = eInvoiceResult.ack_no || null;
                     updateFields.einvoice_ack_date = eInvoiceResult.ack_date || null;
+                    updateFields.einvoice_signed_invoice = eInvoiceResult.signed_invoice || null;
+                    updateFields.einvoice_signed_qr_code = eInvoiceResult.signed_qr_code || null;
                     updateFields.einvoice_error = eInvoiceResult.error || null;
                 }
                 if (ewbResult) {
@@ -199,6 +203,8 @@ export const invoiceController = {
                     einvoice_irn: result.irn || null,
                     einvoice_ack_no: result.ack_no || null,
                     einvoice_ack_date: result.ack_date || null,
+                    einvoice_signed_invoice: result.signed_invoice || null,
+                    einvoice_signed_qr_code: result.signed_qr_code || null,
                     einvoice_error: result.error || null
                 })
                 .eq('id', id)
