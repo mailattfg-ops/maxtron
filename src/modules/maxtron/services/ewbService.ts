@@ -280,13 +280,13 @@ export class EwbService {
 
       const cancelPayload = {
         userGstin: creds.gstin,
-        ewbNo: Number(invoice.ewb_no),
-        cancelRsnCode: Number(reasonCode),
-        cancelRemark: remarks,
+        eway_bill_number: Number(invoice.ewb_no),
+        reason_of_cancel: String(reasonCode),
+        cancel_remark: remarks,
       };
 
-      console.log(`[EwbService] Hitting Masters India Cancel E-Way Bill API: ${creds.baseUrl}/ewaybill/cancel/`);
-      const apiRes = await fetch(`${creds.baseUrl}/ewaybill/cancel/`, {
+      console.log(`[EwbService] Hitting Masters India Cancel E-Way Bill API: ${creds.baseUrl}/ewayBillCancel/`);
+      const apiRes = await fetch(`${creds.baseUrl}/ewayBillCancel/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

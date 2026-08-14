@@ -430,12 +430,12 @@ export class EInvoiceService {
       const cancelPayload = {
         user_gstin: creds.gstin,
         irn: invoice.einvoice_irn,
-        cnl_rsn: reasonCode,
-        cnl_rem: remarks,
+        cancel_reason: reasonCode,
+        cancel_remarks: remarks,
       };
 
-      console.log(`[EInvoiceService] Hitting Masters India Cancel E-Invoice API: ${creds.baseUrl}/einvoice/cancel/`);
-      const apiRes = await fetch(`${creds.baseUrl}/einvoice/cancel/`, {
+      console.log(`[EInvoiceService] Hitting Masters India Cancel E-Invoice API: ${creds.baseUrl}/cancel-einvoice/`);
+      const apiRes = await fetch(`${creds.baseUrl}/cancel-einvoice/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
