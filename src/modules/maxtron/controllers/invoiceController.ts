@@ -9,7 +9,7 @@ const getEnrichedInvoice = async (id: string) => {
         .from('sales_invoices')
         .select(`
             *,
-            customers(*),
+            customers(*, addresses(*)),
             items:sales_invoice_items(
                 *,
                 finished_products(product_name, product_code, hsn_code)

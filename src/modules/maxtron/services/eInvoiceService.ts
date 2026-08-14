@@ -1,5 +1,44 @@
 import { supabase } from '../../../config/supabase';
 
+export function parseGspDateTime(str: string): string | null {
+  if (!str) return null;
+  const parts = str.trim().split(/\s+/);
+  const datePart = parts[0];
+  const timePart = parts[1];
+  const ampm = parts[2];
+
+  if (!datePart) return null;
+  const dateParts = datePart.split('/');
+  if (dateParts.length !== 3) return str;
+
+  const day = dateParts[0];
+  const month = dateParts[1];
+  const year = dateParts[2];
+
+  let hourStr = '00';
+  let minuteStr = '00';
+  let secondStr = '00';
+
+  if (timePart) {
+    const timeParts = timePart.split(':');
+    let hour = parseInt(timeParts[0]) || 0;
+    const minute = parseInt(timeParts[1]) || 0;
+    const second = parseInt(timeParts[2]) || 0;
+
+    if (ampm) {
+      if (ampm.toUpperCase() === 'PM' && hour < 12) hour += 12;
+      if (ampm.toUpperCase() === 'AM' && hour === 12) hour = 0;
+    }
+
+    hourStr = String(hour).padStart(2, '0');
+    minuteStr = String(minute).padStart(2, '0');
+    secondStr = String(second).padStart(2, '0');
+  }
+
+  return `${year}-${month}-${day}T${hourStr}:${minuteStr}:${secondStr}`;
+}
+
+
 export interface EInvoiceResponse {
   irn?: string;
   ack_no?: string;
@@ -90,6 +129,69 @@ export class EInvoiceService {
       const sellerPincode = sellerStateCode === "32" ? 678001 : 201301;
       const sellerLocation = sellerStateCode === "32" ? "Palakkad" : "Noida";
 
+      const buyerStateCode = customer.gst_no ? customer.gst_no.substring(0, 2) : sellerStateCode;
+      const isIgst = buyerStateCode !== sellerStateCode;
+
+      // Sanitize Buyer zip code
+      let buyerPincode = 400001;
+      if (customer.addresses && customer.addresses.length > 0) {
+        const rawZip = customer.addresses[0].zip_code;
+        if (rawZip) {
+          const parsed = parseInt(rawZip.replace(/[^0-9]/g, '')); // Strip any non-digit chars
+          if (!isNaN(parsed) && parsed > 0) {
+            buyerPincode = parsed;
+          }
+        }
+      }
+
+      // Calculate effective GST rate and distribute GST amount per item
+      const effectiveGstRate = totalAmount > 0 ? Math.round((taxAmount / totalAmount) * 100) : 18;
+
+      let calculatedGstSum = 0;
+      const formattedItems = items.map((item: any, idx: number) => {
+        const itemVal = Number(item.amount);
+        let itemGst = 0;
+        
+        if (idx === items.length - 1) {
+          itemGst = Number((taxAmount - calculatedGstSum).toFixed(2));
+        } else {
+          itemGst = Number(((itemVal / totalAmount) * taxAmount).toFixed(2));
+          calculatedGstSum += itemGst;
+        }
+
+        const cgstAmount = isIgst ? 0 : Number((itemGst / 2).toFixed(2));
+        const sgstAmount = isIgst ? 0 : Number((itemGst / 2).toFixed(2));
+        const igstAmount = isIgst ? itemGst : 0;
+
+        return {
+          item_serial_number: (idx + 1).toString(),
+          product_description: item.finished_products?.product_name || "Industrial Product",
+          is_service: "N",
+          hsn_code: item.finished_products?.hsn_code || "392011", // Default 6 digit HSN code
+          bar_code: "",
+          quantity: Number(item.quantity),
+          free_quantity: 0,
+          unit: "KGS",
+          unit_price: Number(item.rate),
+          total_amount: itemVal,
+          pre_tax_value: 0,
+          discount: 0,
+          other_charge: 0,
+          assessable_value: itemVal,
+          gst_rate: effectiveGstRate,
+          igst_amount: igstAmount,
+          cgst_amount: cgstAmount,
+          sgst_amount: sgstAmount,
+          cess_rate: 0,
+          cess_amount: 0,
+          cess_nonadvol_amount: 0,
+          state_cess_rate: 0,
+          state_cess_amount: 0,
+          state_cess_nonadvol_amount: 0,
+          total_item_value: Number((itemVal + itemGst).toFixed(2))
+        };
+      });
+
       const einvoicePayload = {
         user_gstin: sellerGstin,
         data_source: "erp",
@@ -121,15 +223,15 @@ export class EInvoiceService {
           address1: customer.addresses?.[0]?.street || "Customer Address",
           address2: "",
           location: customer.addresses?.[0]?.city || "Mumbai",
-          pincode: parseInt(customer.addresses?.[0]?.zip_code) || 400001,
-          place_of_supply: customer.gst_no ? customer.gst_no.substring(0, 2) : sellerStateCode, // First 2 digits of buyer GSTIN
-          state_code: customer.gst_no ? customer.gst_no.substring(0, 2) : sellerStateCode,
+          pincode: buyerPincode,
+          place_of_supply: buyerStateCode,
+          state_code: buyerStateCode,
         },
         value_details: {
           total_assessable_value: totalAmount,
-          total_cgst_value: taxAmount / 2,
-          total_sgst_value: taxAmount / 2,
-          total_igst_value: 0,
+          total_cgst_value: isIgst ? 0 : taxAmount / 2,
+          total_sgst_value: isIgst ? 0 : taxAmount / 2,
+          total_igst_value: isIgst ? taxAmount : 0,
           total_cess_value: 0,
           total_cess_value_of_state: 0,
           total_discount: 0,
@@ -138,37 +240,7 @@ export class EInvoiceService {
           round_off_amount: 0,
           total_invoice_value_additional_currency: 0
         },
-        item_list: items.map((item: any, idx: number) => {
-          const itemVal = Number(item.amount);
-          const itemGst = item.gst_amount ? Number(item.gst_amount) : 0;
-          return {
-            item_serial_number: (idx + 1).toString(),
-            product_description: item.finished_products?.product_name || "Industrial Product",
-            is_service: "N",
-            hsn_code: item.finished_products?.hsn_code || "392011", // Default 6 digit HSN code
-            bar_code: "",
-            quantity: Number(item.quantity),
-            free_quantity: 0,
-            unit: "KGS",
-            unit_price: Number(item.rate),
-            total_amount: itemVal,
-            pre_tax_value: 0,
-            discount: 0,
-            other_charge: 0,
-            assessable_value: itemVal,
-            gst_rate: Number(item.gst_percent || 18),
-            igst_amount: 0,
-            cgst_amount: itemGst / 2,
-            sgst_amount: itemGst / 2,
-            cess_rate: 0,
-            cess_amount: 0,
-            cess_nonadvol_amount: 0,
-            state_cess_rate: 0,
-            state_cess_amount: 0,
-            state_cess_nonadvol_amount: 0,
-            total_item_value: itemVal + itemGst
-          };
-        }),
+        item_list: formattedItems
       };
 
       console.log(`[EInvoiceService] Hitting Masters India E-Invoice API: ${creds.baseUrl}/einvoice/`);
@@ -202,7 +274,7 @@ export class EInvoiceService {
         const successRes: EInvoiceResponse = {
           irn,
           ack_no: ackNo,
-          ack_date: ackDt,
+          ack_date: parseGspDateTime(ackDt) || ackDt,
           signed_invoice: signedInvoice,
           signed_qr_code: signedQrCode,
           status: 'GENERATED',
