@@ -8,6 +8,44 @@ export interface EwbResponse {
   ewb_error?: string;
 }
 
+export function parseGspDateTime(str: string): string | null {
+  if (!str) return null;
+  const parts = str.trim().split(/\s+/);
+  const datePart = parts[0];
+  const timePart = parts[1];
+  const ampm = parts[2];
+
+  if (!datePart) return null;
+  const dateParts = datePart.split('/');
+  if (dateParts.length !== 3) return str;
+
+  const day = dateParts[0];
+  const month = dateParts[1];
+  const year = dateParts[2];
+
+  let hourStr = '00';
+  let minuteStr = '00';
+  let secondStr = '00';
+
+  if (timePart) {
+    const timeParts = timePart.split(':');
+    let hour = parseInt(timeParts[0]) || 0;
+    const minute = parseInt(timeParts[1]) || 0;
+    const second = parseInt(timeParts[2]) || 0;
+
+    if (ampm) {
+      if (ampm.toUpperCase() === 'PM' && hour < 12) hour += 12;
+      if (ampm.toUpperCase() === 'AM' && hour === 12) hour = 0;
+    }
+
+    hourStr = String(hour).padStart(2, '0');
+    minuteStr = String(minute).padStart(2, '0');
+    secondStr = String(second).padStart(2, '0');
+  }
+
+  return `${year}-${month}-${day}T${hourStr}:${minuteStr}:${secondStr}`;
+}
+
 export class EwbService {
   private static getCredentials() {
     return {
@@ -163,8 +201,8 @@ export class EwbService {
       if (result.status === 'Success' && result.message && result.message.ewayBillNo) {
         return {
           ewb_no: result.message.ewayBillNo?.toString(),
-          ewb_date: result.message.ewayBillDate,
-          ewb_valid_till: result.message.validUpto,
+          ewb_date: parseGspDateTime(result.message.ewayBillDate) || result.message.ewayBillDate,
+          ewb_valid_till: parseGspDateTime(result.message.validUpto) || result.message.validUpto,
           ewb_status: 'GENERATED',
         };
       } else {
@@ -242,13 +280,13 @@ export class EwbService {
 
       const cancelPayload = {
         userGstin: creds.gstin,
-        ewbNo: Number(invoice.ewb_no),
-        cancelRsnCode: Number(reasonCode),
-        cancelRemark: remarks,
+        eway_bill_number: Number(invoice.ewb_no),
+        reason_of_cancel: String(reasonCode),
+        cancel_remark: remarks,
       };
 
-      console.log(`[EwbService] Hitting Masters India Cancel E-Way Bill API: ${creds.baseUrl}/ewaybill/cancel/`);
-      const apiRes = await fetch(`${creds.baseUrl}/ewaybill/cancel/`, {
+      console.log(`[EwbService] Hitting Masters India Cancel E-Way Bill API: ${creds.baseUrl}/ewayBillCancel/`);
+      const apiRes = await fetch(`${creds.baseUrl}/ewayBillCancel/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

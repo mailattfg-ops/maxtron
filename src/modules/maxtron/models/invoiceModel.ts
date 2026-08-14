@@ -6,7 +6,7 @@ export const InvoiceModel = {
             .from('sales_invoices')
             .select(`
                 *,
-                customers(customer_name, customer_code),
+                customers(customer_name, customer_code, gst_no, addresses(*)),
                 orders:customer_orders(order_number),
                 executive:users!executive_id(name),
                 items:sales_invoice_items(

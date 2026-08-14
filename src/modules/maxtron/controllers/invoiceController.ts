@@ -9,7 +9,7 @@ const getEnrichedInvoice = async (id: string) => {
         .from('sales_invoices')
         .select(`
             *,
-            customers(*),
+            customers(*, addresses(*)),
             items:sales_invoice_items(
                 *,
                 finished_products(product_name, product_code, hsn_code)
@@ -267,7 +267,9 @@ export const invoiceController = {
     cancelEInvoice: async (req: Request, res: Response) => {
         try {
             const { id } = req.params;
-            const { reasonCode, remarks } = req.body;
+            const { reasonCode, remarks, cancel_reason, cancel_remarks } = req.body || {};
+            const finalReason = reasonCode || cancel_reason || '2';
+            const finalRemarks = remarks || cancel_remarks || 'Cancelled from ERP';
             const invoice = await getEnrichedInvoice(id);
 
             if (!invoice.einvoice_irn) {
@@ -275,7 +277,7 @@ export const invoiceController = {
             }
 
             console.log(`[invoiceController] Cancelling e-Invoice for Invoice ID: ${id}`);
-            const result = await EInvoiceService.cancelEInvoice(invoice, reasonCode || '2', remarks || 'Cancelled from ERP');
+            const result = await EInvoiceService.cancelEInvoice(invoice, finalReason, finalRemarks);
 
             if (result.status === 'CANCELLED') {
                 const { data: updated, error: updateErr } = await supabase
