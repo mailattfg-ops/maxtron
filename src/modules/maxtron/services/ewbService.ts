@@ -46,6 +46,20 @@ export function parseGspDateTime(str: string): string | null {
   return `${year}-${month}-${day}T${hourStr}:${minuteStr}:${secondStr}`;
 }
 
+export function getStateName(stateCode: string): string {
+  switch (stateCode) {
+    case "32": return "KERALA";
+    case "27": return "MAHARASHTRA";
+    case "29": return "KARNATAKA";
+    case "33": return "TAMIL NADU";
+    case "36": return "TELANGANA";
+    case "37": return "ANDHRA PRADESH";
+    case "09": return "UTTAR PRADESH";
+    case "24": return "GUJARAT";
+    default: return "KERALA";
+  }
+}
+
 export class EwbService {
   private static getCredentials() {
     return {
@@ -115,6 +129,22 @@ export class EwbService {
       const docDate = invoice.invoice_date || invoice.order_date || new Date().toISOString();
       const totalAmount = Number(invoice.total_amount || invoice.total_value || 0);
       const taxAmount = invoice.tax_amount ? Number(invoice.tax_amount) : 0;
+
+      // Dynamic states, pincodes, and tax rates
+      const sellerGstin = creds.gstin;
+      const sellerStateCode = sellerGstin ? sellerGstin.substring(0, 2) : "32";
+      const sellerStateName = getStateName(sellerStateCode);
+      const sellerPincode = sellerStateCode === "32" ? 678001 : 400001;
+      const sellerPlace = sellerStateCode === "32" ? "Palakkad" : "Mumbai";
+      const sellerLegalName = invoice.companies?.company_name === 'KEIL' ? "KEIL Industries Ltd." : "MAXTRON ASSOCIATES";
+
+      const buyerGstin = customer.gst_no || "URP";
+      const buyerStateCode = buyerGstin !== "URP" ? buyerGstin.substring(0, 2) : sellerStateCode;
+      const buyerStateName = getStateName(buyerStateCode);
+      const buyerPincode = parseInt(customer.addresses?.[0]?.zip_code) || (buyerStateCode === "32" ? 678001 : 400001);
+      const buyerPlace = customer.addresses?.[0]?.city || (buyerStateCode === "32" ? "Palakkad" : "Mumbai");
+
+      const isIgst = buyerStateCode !== sellerStateCode;
       
       const ewbPayload = {
         userGstin: creds.gstin,
@@ -125,28 +155,28 @@ export class EwbService {
         document_number: docNo,
         document_date: new Date(docDate).toLocaleDateString('en-GB'), // "DD/MM/YYYY" format
         gstin_of_consignor: creds.gstin,
-        legal_name_of_consignor: "Maxtron Industries",
-        address1_of_consignor: "Maxtron Industrial Area",
+        legal_name_of_consignor: sellerLegalName,
+        address1_of_consignor: sellerStateCode === "32" ? "KEIL Industrial Area" : "Maxtron Industrial Area",
         address2_of_consignor: "Phase II",
-        place_of_consignor: "Mumbai",
-        pincode_of_consignor: 400001,
-        state_of_consignor: "MAHARASHTRA",
-        actual_from_state_name: "MAHARASHTRA",
-        gstin_of_consignee: customer.gst_no || "URP", // URP for B2C Unregistered
+        place_of_consignor: sellerPlace,
+        pincode_of_consignor: sellerPincode,
+        state_of_consignor: sellerStateName,
+        actual_from_state_name: sellerStateName,
+        gstin_of_consignee: buyerGstin,
         legal_name_of_consignee: customer.customer_name,
         address1_of_consignee: customer.addresses?.[0]?.street || "Customer Address",
         address2_of_consignee: "",
-        place_of_consignee: customer.addresses?.[0]?.city || "Mumbai",
-        pincode_of_consignee: parseInt(customer.addresses?.[0]?.zip_code) || 400001,
-        state_of_supply: "MAHARASHTRA", // Set dynamically or fall back to default
-        actual_to_state_name: "MAHARASHTRA",
+        place_of_consignee: buyerPlace,
+        pincode_of_consignee: buyerPincode,
+        state_of_supply: buyerStateName,
+        actual_to_state_name: buyerStateName,
         transaction_type: 1, // Regular
         other_value: 0,
         total_invoice_value: totalAmount + taxAmount,
         taxable_amount: totalAmount,
-        cgst_amount: taxAmount / 2,
-        sgst_amount: taxAmount / 2,
-        igst_amount: 0,
+        cgst_amount: isIgst ? 0 : taxAmount / 2,
+        sgst_amount: isIgst ? 0 : taxAmount / 2,
+        igst_amount: isIgst ? taxAmount : 0,
         cess_amount: 0,
         cess_nonadvol_value: 0,
         transporter_id: invoice.transporter_id || "",
@@ -171,9 +201,9 @@ export class EwbService {
           hsn_code: item.finished_products?.hsn_code || "392011",
           quantity: Number(item.quantity),
           unit_of_product: "KGS",
-          cgst_rate: Number(item.gst_percent || 18) / 2,
-          sgst_rate: Number(item.gst_percent || 18) / 2,
-          igst_rate: 0,
+          cgst_rate: isIgst ? 0 : Number(item.gst_percent || 18) / 2,
+          sgst_rate: isIgst ? 0 : Number(item.gst_percent || 18) / 2,
+          igst_rate: isIgst ? Number(item.gst_percent || 18) : 0,
           cess_rate: 0,
           cessNonAdvol: 0,
           taxable_amount: Number(item.amount)
