@@ -6,8 +6,9 @@ export const SalesReturnModel = {
             .from('sales_returns')
             .select(`
                 *,
-                invoices:sales_invoices(invoice_number, einvoice_irn, invoice_date, invoice_type, tax_amount, net_amount),
+                invoices:sales_invoices(invoice_number, einvoice_status, einvoice_irn, einvoice_ack_no, einvoice_ack_date, invoice_date, invoice_type, tax_amount, net_amount),
                 customers(customer_name, customer_code, gst_no, addresses(*)),
+
                 return_employee:users!return_employee_id(name),
                 items:sales_return_items(
                     *,
