@@ -50,6 +50,16 @@ export interface EInvoiceResponse {
   raw_response?: any;
 }
 
+export interface CreditNoteResponse {
+  irn?: string;
+  ack_no?: string;
+  ack_date?: string;
+  signed_qr_code?: string;
+  status: 'GENERATED' | 'FAILED' | 'NOT_APPLICABLE';
+  error?: string;
+  raw_response?: any;
+}
+
 export class EInvoiceService {
   private static getCredentials() {
     return {
@@ -388,6 +398,262 @@ export class EInvoiceService {
     console.log('================================================================================\n');
 
     return res;
+  }
+
+  /**
+   * Generate Credit Note (CRN) IRN for a Sales Return linked to a B2B e-Invoice
+   * Per GSTN rules, document_type = "CRN" with preceding_document_details referencing original IRN
+   */
+  public static async generateCreditNote(
+    returnRecord: any,
+    originalInvoice: any,
+    customer: any,
+    items: any[]
+  ): Promise<CreditNoteResponse> {
+    try {
+      // Only applicable for B2B returns against e-invoiced documents
+      if (!customer?.gst_no) {
+        return {
+          status: 'NOT_APPLICABLE',
+          error: 'Credit Note only applicable for B2B customers with GST number.',
+        };
+      }
+
+      if (!originalInvoice?.einvoice_irn) {
+        return {
+          status: 'NOT_APPLICABLE',
+          error: 'Original invoice does not have an e-Invoice IRN. Credit Note cannot be generated.',
+        };
+      }
+
+      if (this.isMockMode()) {
+        console.log(`[EInvoiceService] Simulating Credit Note generation (Mock Mode) for Return ${returnRecord.return_number}`);
+        return this.simulateMockCreditNote(returnRecord);
+      }
+
+      const creds = this.getCredentials();
+
+      // Authenticate with Masters India GSP
+      const authRes = await fetch(`${creds.baseUrl}/token-auth/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: creds.username, password: creds.password }),
+      });
+
+      if (!authRes.ok) {
+        const errText = await authRes.text();
+        throw new Error(`Masters India authentication failed: ${errText}`);
+      }
+
+      const authData = await authRes.json();
+      const token = authData.token;
+      if (!token) throw new Error('Invalid response from Masters India GSP: missing auth token.');
+
+      const sellerGstin = creds.gstin || '32AUYPV8850B1Z2';
+      const sellerStateCode = sellerGstin.substring(0, 2);
+      const sellerLegalName = returnRecord.companies?.company_name === 'KEIL' ? 'KEIL Industries Ltd.' : 'MAXTRON ASSOCIATES';
+      const sellerPincode = sellerStateCode === '32' ? 678001 : 201301;
+      const sellerLocation = sellerStateCode === '32' ? 'Palakkad' : 'Noida';
+
+      const buyerStateCode = customer.gst_no.substring(0, 2);
+      const isIgst = buyerStateCode !== sellerStateCode;
+
+      let buyerPincode = 400001;
+      if (customer.addresses?.length > 0) {
+        const rawZip = customer.addresses[0].zip_code;
+        if (rawZip) {
+          const parsed = parseInt(rawZip.replace(/[^0-9]/g, ''));
+          if (!isNaN(parsed) && parsed > 0) buyerPincode = parsed;
+        }
+      }
+
+      const totalAmount = Number(returnRecord.total_return_value || 0);
+      const taxAmount = Number(originalInvoice.tax_amount || 0);
+      const effectiveGstRate = totalAmount > 0 && Number(originalInvoice.net_amount) > 0
+        ? Math.round((taxAmount / Number(originalInvoice.net_amount)) * 100)
+        : 18;
+
+      let calculatedGstSum = 0;
+      const formattedItems = items.map((item: any, idx: number) => {
+        const itemVal = Number(item.value || (Number(item.quantity) * Number(item.rate)));
+        let itemGst = 0;
+        if (idx === items.length - 1) {
+          itemGst = Number((taxAmount - calculatedGstSum).toFixed(2));
+        } else {
+          itemGst = totalAmount > 0 ? Number(((itemVal / totalAmount) * taxAmount).toFixed(2)) : 0;
+          calculatedGstSum += itemGst;
+        }
+        const cgstAmount = isIgst ? 0 : Number((itemGst / 2).toFixed(2));
+        const sgstAmount = isIgst ? 0 : Number((itemGst / 2).toFixed(2));
+        const igstAmount = isIgst ? itemGst : 0;
+
+        return {
+          item_serial_number: (idx + 1).toString(),
+          product_description: item.finished_products?.product_name || 'Returned Product',
+          is_service: 'N',
+          hsn_code: item.finished_products?.hsn_code || '392011',
+          bar_code: '',
+          quantity: Number(item.quantity),
+          free_quantity: 0,
+          unit: 'KGS',
+          unit_price: Number(item.rate),
+          total_amount: itemVal,
+          pre_tax_value: 0,
+          discount: 0,
+          other_charge: 0,
+          assessable_value: itemVal,
+          gst_rate: effectiveGstRate,
+          igst_amount: igstAmount,
+          cgst_amount: cgstAmount,
+          sgst_amount: sgstAmount,
+          cess_rate: 0,
+          cess_amount: 0,
+          cess_nonadvol_amount: 0,
+          state_cess_rate: 0,
+          state_cess_amount: 0,
+          state_cess_nonadvol_amount: 0,
+          total_item_value: Number((itemVal + itemGst).toFixed(2))
+        };
+      });
+
+      const returnDate = returnRecord.return_date
+        ? new Date(returnRecord.return_date).toLocaleDateString('en-GB')
+        : new Date().toLocaleDateString('en-GB');
+
+      const origInvoiceDate = originalInvoice.invoice_date
+        ? new Date(originalInvoice.invoice_date).toLocaleDateString('en-GB')
+        : returnDate;
+
+      const creditNotePayload = {
+        user_gstin: sellerGstin,
+        data_source: 'erp',
+        transaction_details: {
+          supply_type: 'B2B',
+          charge_type: 'N',
+          igst_on_intra: 'N',
+          ecommerce_gstin: ''
+        },
+        document_details: {
+          document_type: 'CRN',  // Credit Note
+          document_number: String(returnRecord.return_number || 'CRN-0001').substring(0, 16),
+          document_date: returnDate
+        },
+        preceding_document_details: [{
+          reference_of_original_invoice: String(originalInvoice.invoice_number).substring(0, 16),
+          preceding_invoice_date: origInvoiceDate,
+          other_reference: originalInvoice.einvoice_irn || ''
+        }],
+        seller_details: {
+          gstin: sellerGstin,
+          legal_name: sellerLegalName,
+          trade_name: sellerLegalName,
+          address1: 'Maxtron Industrial Area',
+          address2: 'Industrial Estate',
+          location: sellerLocation,
+          pincode: sellerPincode,
+          state_code: sellerStateCode,
+        },
+        buyer_details: {
+          gstin: customer.gst_no,
+          legal_name: customer.customer_name,
+          trade_name: customer.customer_name,
+          address1: customer.addresses?.[0]?.street || 'Customer Address',
+          address2: '',
+          location: customer.addresses?.[0]?.city || 'Mumbai',
+          pincode: buyerPincode,
+          place_of_supply: buyerStateCode,
+          state_code: buyerStateCode,
+        },
+        value_details: {
+          total_assessable_value: totalAmount,
+          total_cgst_value: isIgst ? 0 : taxAmount / 2,
+          total_sgst_value: isIgst ? 0 : taxAmount / 2,
+          total_igst_value: isIgst ? taxAmount : 0,
+          total_cess_value: 0,
+          total_cess_value_of_state: 0,
+          total_discount: 0,
+          total_other_charge: 0,
+          total_invoice_value: totalAmount + taxAmount,
+          round_off_amount: 0,
+          total_invoice_value_additional_currency: 0
+        },
+        item_list: formattedItems
+      };
+
+      console.log(`[EInvoiceService] Generating Credit Note (CRN) via Masters India for Return ${returnRecord.return_number}`);
+      const apiRes = await fetch(`${creds.baseUrl}/einvoice/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `JWT ${token}`,
+        },
+        body: JSON.stringify(creditNotePayload),
+      });
+
+      if (!apiRes.ok) {
+        const errText = await apiRes.text();
+        throw new Error(`Masters India Credit Note API failed with status ${apiRes.status}: ${errText}`);
+      }
+
+      const responseData = await apiRes.json();
+      const result = responseData.results || responseData.data || responseData;
+      const msg = result.message || result.data || result;
+
+      const irn = msg.Irn || msg.irn || result.Irn || result.irn;
+      const ackNo = (msg.AckNo || msg.ack_no || result.AckNo || result.ack_no)?.toString();
+      const ackDt = msg.AckDt || msg.ack_date || result.AckDt || result.ack_date;
+      const signedQrCode = msg.SignedQRCode || msg.signed_qr_code || result.SignedQRCode || result.signed_qr_code;
+
+      const isSuccess = (result.status === 'Success' || responseData.success === true || Boolean(irn));
+
+      if (isSuccess && irn) {
+        console.log(`\n[EInvoiceService] CREDIT NOTE (CRN) GENERATED: ${irn} for Return ${returnRecord.return_number}`);
+        return {
+          irn,
+          ack_no: ackNo,
+          ack_date: parseGspDateTime(ackDt) || ackDt,
+          signed_qr_code: signedQrCode,
+          status: 'GENERATED',
+          raw_response: responseData
+        };
+      } else {
+        const errorMsg = result.errorMessage || result.message || 'Unknown GSP error during CRN generation';
+        const errStr = typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg);
+        console.error(`[EInvoiceService] Credit Note generation failed: ${errStr}`);
+        return { status: 'FAILED', error: errStr, raw_response: responseData };
+      }
+    } catch (error: any) {
+      console.error('[EInvoiceService] Error in Credit Note generation:', error);
+      return { status: 'FAILED', error: `Connection error: ${error.message}` };
+    }
+  }
+
+  private static simulateMockCreditNote(returnRecord: any): CreditNoteResponse {
+    const irn = require('crypto').randomBytes(32).toString('hex');
+    const ack_no = Math.floor(100000000000000 + Math.random() * 900000000000000).toString();
+    const ack_date = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    const mockHeader = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64');
+    const mockPayload = Buffer.from(JSON.stringify({
+      Irn: irn,
+      AckNo: Number(ack_no),
+      AckDt: ack_date,
+      DocNo: returnRecord.return_number || 'CRN-MOCK',
+      DocType: 'CRN'
+    })).toString('base64');
+    const mockSig = require('crypto').randomBytes(64).toString('base64url');
+    const signed_qr_code = `${mockHeader}.${mockPayload}.${mockSig}`;
+
+    console.log('\n================================================================================');
+    console.log('⚡ [EInvoiceService] CREDIT NOTE (CRN) GENERATION (SIMULATED MOCK MODE)');
+    console.log('--------------------------------------------------------------------------------');
+    console.log(`Return Number    : ${returnRecord.return_number}`);
+    console.log(`CRN IRN          : ${irn}`);
+    console.log(`Ack Number       : ${ack_no}`);
+    console.log(`Ack Date         : ${ack_date}`);
+    console.log('================================================================================\n');
+
+    return { irn, ack_no, ack_date, signed_qr_code, status: 'GENERATED', raw_response: { success: true } };
   }
 
   /**

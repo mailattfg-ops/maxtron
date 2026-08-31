@@ -6,12 +6,13 @@ export const SalesReturnModel = {
             .from('sales_returns')
             .select(`
                 *,
-                invoices:sales_invoices(invoice_number),
-                customers(customer_name, customer_code),
+                invoices:sales_invoices(invoice_number, einvoice_status, einvoice_irn, einvoice_ack_no, einvoice_ack_date, invoice_date, invoice_type, tax_amount, net_amount),
+                customers(customer_name, customer_code, gst_no, addresses(*)),
+
                 return_employee:users!return_employee_id(name),
                 items:sales_return_items(
                     *,
-                    finished_products(product_name, product_code)
+                    finished_products(product_name, product_code, hsn_code)
                 )
             `)
             .eq('company_id', companyId)
@@ -20,6 +21,7 @@ export const SalesReturnModel = {
         if (error) throw new Error(error.message);
         return data || [];
     },
+
 
     create: async (returnData: any) => {
         const { items, ...header } = returnData;

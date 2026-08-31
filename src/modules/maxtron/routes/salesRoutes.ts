@@ -36,5 +36,7 @@ router.get('/returns', protect, salesReturnController.getAll);
 router.post('/returns', protect, salesReturnController.create);
 router.put('/returns/:id', protect, salesReturnController.update);
 router.delete('/returns/:id', protect, salesReturnController.delete);
+router.post('/returns/:id/credit-note', protect, salesReturnController.generateCreditNote);
+
 
 export default router;
