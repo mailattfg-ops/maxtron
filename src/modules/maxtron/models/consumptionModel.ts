@@ -32,7 +32,17 @@ export const ConsumptionModel = {
     create: async (consumptionData: any) => {
         const { rm_id, quantity_used, company_id } = consumptionData;
 
-        // 1. Calculate Purchased Quantity for this RM
+        // 1. Fetch Raw Material Opening Stock
+        const { data: rmData, error: rmErr } = await supabase
+            .from('raw_materials')
+            .select('opening_stock')
+            .eq('id', rm_id)
+            .single();
+
+        if (rmErr) throw new Error(rmErr.message);
+        const openingStock = Number(rmData?.opening_stock || 0);
+
+        // 2. Calculate Purchased Quantity for this RM
         const { data: purchaseItems, error: purErr } = await supabase
             .from('purchase_entry_items')
             .select('received_quantity, purchase_entries!inner(company_id)')
@@ -43,7 +53,7 @@ export const ConsumptionModel = {
 
         const totalPurchased = purchaseItems?.reduce((acc, curr) => acc + Number(curr.received_quantity || 0), 0) || 0;
 
-        // 2. Calculate Consumed Quantity for this RM
+        // 3. Calculate Consumed Quantity for this RM
         const { data: consumptions, error: conErr } = await supabase
             .from('material_consumptions')
             .select('quantity_used')
@@ -54,8 +64,21 @@ export const ConsumptionModel = {
 
         const totalConsumed = consumptions?.reduce((acc, curr) => acc + Number(curr.quantity_used || 0), 0) || 0;
 
-        // 3. Check Stock
-        const currentStock = totalPurchased - totalConsumed;
+        // 4. Calculate Returned Quantity for this RM
+        let retQuery = supabase
+            .from('purchase_returns')
+            .select('quantity_returned')
+            .eq('rm_id', rm_id)
+            .or('status.eq.CREDITED,status.eq.Credit Received,status.eq.APPROVED,status.eq.Approved,status.eq.DISPATCHED');
+        if (company_id) retQuery = retQuery.eq('company_id', company_id);
+
+        const { data: returns, error: retErr } = await retQuery;
+        if (retErr) throw new Error(retErr.message);
+
+        const totalReturned = returns?.reduce((acc, curr) => acc + Number(curr.quantity_returned || 0), 0) || 0;
+
+        // 5. Check Stock
+        const currentStock = openingStock + totalPurchased - totalConsumed - totalReturned;
 
         if (quantity_used > currentStock) {
             throw new Error(`Insufficient stock. Available: ${currentStock}, Requested: ${quantity_used}`);
@@ -82,7 +105,17 @@ export const ConsumptionModel = {
 
         if (getErr) throw new Error(getErr.message);
 
-        // 2. Fetch Stock (excluding this record's contribution to consumption)
+        // 2. Fetch Raw Material Opening Stock
+        const { data: rmData, error: rmErr } = await supabase
+            .from('raw_materials')
+            .select('opening_stock')
+            .eq('id', rm_id)
+            .single();
+
+        if (rmErr) throw new Error(rmErr.message);
+        const openingStock = Number(rmData?.opening_stock || 0);
+
+        // 3. Fetch Stock (excluding this record's contribution to consumption)
         const { data: purchaseItems, error: purErr } = await supabase
             .from('purchase_entry_items')
             .select('received_quantity, purchase_entries!inner(company_id)')
@@ -102,7 +135,20 @@ export const ConsumptionModel = {
         if (conErr) throw new Error(conErr.message);
         const otherConsumed = consumptions?.reduce((acc, curr) => acc + Number(curr.quantity_used || 0), 0) || 0;
 
-        const currentAvailable = totalPurchased - otherConsumed;
+        // 4. Fetch Returned Quantity
+        let retQuery = supabase
+            .from('purchase_returns')
+            .select('quantity_returned')
+            .eq('rm_id', rm_id)
+            .or('status.eq.CREDITED,status.eq.Credit Received,status.eq.APPROVED,status.eq.Approved,status.eq.DISPATCHED');
+        if (company_id) retQuery = retQuery.eq('company_id', company_id);
+
+        const { data: returns, error: retErr } = await retQuery;
+        if (retErr) throw new Error(retErr.message);
+
+        const totalReturned = returns?.reduce((acc, curr) => acc + Number(curr.quantity_returned || 0), 0) || 0;
+
+        const currentAvailable = openingStock + totalPurchased - otherConsumed - totalReturned;
 
         if (quantity_used > currentAvailable) {
             throw new Error(`Insufficient stock for update. Available: ${currentAvailable}, Requested: ${quantity_used}`);
