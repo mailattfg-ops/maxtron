@@ -467,25 +467,29 @@ export class EInvoiceService {
         }
       }
 
-      const totalAmount = Number(returnRecord.total_return_value || 0);
-      const taxAmount = Number(originalInvoice.tax_amount || 0);
-      const effectiveGstRate = totalAmount > 0 && Number(originalInvoice.net_amount) > 0
-        ? Math.round((taxAmount / Number(originalInvoice.net_amount)) * 100)
+      const origInvoiceTax = Number(originalInvoice.tax_amount || 0);
+      const origInvoiceNet = Number(originalInvoice.net_amount || 0);
+      const effectiveGstRate = origInvoiceNet > 0 && origInvoiceTax > 0
+        ? Math.round((origInvoiceTax / origInvoiceNet) * 100)
         : 18;
 
-      let calculatedGstSum = 0;
+      let totalReturnAssessableValue = 0;
+      let totalReturnCgst = 0;
+      let totalReturnSgst = 0;
+      let totalReturnIgst = 0;
+
       const formattedItems = items.map((item: any, idx: number) => {
         const itemVal = Number(item.value || (Number(item.quantity) * Number(item.rate)));
-        let itemGst = 0;
-        if (idx === items.length - 1) {
-          itemGst = Number((taxAmount - calculatedGstSum).toFixed(2));
-        } else {
-          itemGst = totalAmount > 0 ? Number(((itemVal / totalAmount) * taxAmount).toFixed(2)) : 0;
-          calculatedGstSum += itemGst;
-        }
+        totalReturnAssessableValue += itemVal;
+
+        const itemGst = Number(((itemVal * effectiveGstRate) / 100).toFixed(2));
         const cgstAmount = isIgst ? 0 : Number((itemGst / 2).toFixed(2));
         const sgstAmount = isIgst ? 0 : Number((itemGst / 2).toFixed(2));
         const igstAmount = isIgst ? itemGst : 0;
+
+        totalReturnCgst += cgstAmount;
+        totalReturnSgst += sgstAmount;
+        totalReturnIgst += igstAmount;
 
         return {
           item_serial_number: (idx + 1).toString(),
@@ -515,6 +519,20 @@ export class EInvoiceService {
           total_item_value: Number((itemVal + itemGst).toFixed(2))
         };
       });
+
+      if (items.length === 0) {
+        totalReturnAssessableValue = Number(returnRecord.total_return_value || 0);
+        const totalGst = Number(((totalReturnAssessableValue * effectiveGstRate) / 100).toFixed(2));
+        if (isIgst) {
+          totalReturnIgst = totalGst;
+        } else {
+          totalReturnCgst = Number((totalGst / 2).toFixed(2));
+          totalReturnSgst = Number((totalGst / 2).toFixed(2));
+        }
+      }
+
+      const totalReturnTax = totalReturnCgst + totalReturnSgst + totalReturnIgst;
+      const totalReturnInvoiceValue = Number((totalReturnAssessableValue + totalReturnTax).toFixed(2));
 
       const returnDate = returnRecord.return_date
         ? new Date(returnRecord.return_date).toLocaleDateString('en-GB')
@@ -565,15 +583,15 @@ export class EInvoiceService {
           state_code: buyerStateCode,
         },
         value_details: {
-          total_assessable_value: totalAmount,
-          total_cgst_value: isIgst ? 0 : taxAmount / 2,
-          total_sgst_value: isIgst ? 0 : taxAmount / 2,
-          total_igst_value: isIgst ? taxAmount : 0,
+          total_assessable_value: Number(totalReturnAssessableValue.toFixed(2)),
+          total_cgst_value: Number(totalReturnCgst.toFixed(2)),
+          total_sgst_value: Number(totalReturnSgst.toFixed(2)),
+          total_igst_value: Number(totalReturnIgst.toFixed(2)),
           total_cess_value: 0,
           total_cess_value_of_state: 0,
           total_discount: 0,
           total_other_charge: 0,
-          total_invoice_value: totalAmount + taxAmount,
+          total_invoice_value: totalReturnInvoiceValue,
           round_off_amount: 0,
           total_invoice_value_additional_currency: 0
         },
