@@ -13,7 +13,7 @@ const getEnrichedReturn = async (id: string) => {
             *,
             invoices:sales_invoices(
                 id, invoice_number, invoice_date, invoice_type,
-                einvoice_irn, tax_amount, net_amount
+                einvoice_irn, tax_amount, net_amount, total_amount
             ),
             customers(*, addresses(*)),
             items:sales_return_items(
