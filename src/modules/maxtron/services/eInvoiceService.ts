@@ -468,9 +468,13 @@ export class EInvoiceService {
       }
 
       const origInvoiceTax = Number(originalInvoice.tax_amount || 0);
-      const origInvoiceNet = Number(originalInvoice.net_amount || 0);
-      const effectiveGstRate = origInvoiceNet > 0 && origInvoiceTax > 0
-        ? Math.round((origInvoiceTax / origInvoiceNet) * 100)
+      const origInvoiceTaxable = Number(
+        originalInvoice.total_amount ||
+        (Number(originalInvoice.net_amount || 0) - origInvoiceTax) ||
+        0
+      );
+      const effectiveGstRate = origInvoiceTaxable > 0 && origInvoiceTax > 0
+        ? Math.round((origInvoiceTax / origInvoiceTaxable) * 100)
         : 18;
 
       let totalReturnAssessableValue = 0;
