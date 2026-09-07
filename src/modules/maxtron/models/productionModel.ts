@@ -9,6 +9,10 @@ export const ProductionModel = {
             .select(`
                 *,
                 finished_products(id, product_name, product_code, color),
+                items:production_batch_items(
+                    *,
+                    finished_products(id, product_name, product_code, color)
+                ),
                 supervisor:users!supervisor_id(name),
                 operator:users!operator_id(name),
                 material_consumptions!batch_id(
@@ -29,9 +33,17 @@ export const ProductionModel = {
     },
 
     createBatch: async (batchData: any) => {
-        const { consumption_ids, ...batchFields } = batchData;
+        const { consumption_ids, items, ...batchFields } = batchData;
         const sanitizedData = { ...batchFields };
         const uuidFields = ['product_id', 'operator_id', 'supervisor_id', 'company_id', 'consumption_id'];
+
+        if (Array.isArray(items) && items.length > 0) {
+            sanitizedData.product_id = items[0].product_id || sanitizedData.product_id;
+            const itemsOutputTotal = items.reduce((sum: number, it: any) => sum + (Number(it.output_qty) || 0), 0);
+            if (itemsOutputTotal > 0) {
+                sanitizedData.extrusion_output_qty = itemsOutputTotal;
+            }
+        }
 
         uuidFields.forEach(field => {
             if (sanitizedData[field] === '') {
@@ -71,13 +83,40 @@ export const ProductionModel = {
             if (updateError) throw new Error(updateError.message);
         }
 
+        // 4. Insert finished product items
+        if (Array.isArray(items) && items.length > 0) {
+            const itemsToInsert = items
+                .filter((it: any) => it.product_id)
+                .map((it: any) => ({
+                    batch_id: data.id,
+                    product_id: it.product_id,
+                    output_qty: Number(it.output_qty) || 0
+                }));
+
+            if (itemsToInsert.length > 0) {
+                const { error: batchItemsError } = await supabase
+                    .from('production_batch_items')
+                    .insert(itemsToInsert);
+
+                if (batchItemsError) throw new Error(batchItemsError.message);
+            }
+        }
+
         return data;
     },
 
     updateBatch: async (id: string, batchData: any) => {
-        const { consumption_ids, ...batchFields } = batchData;
+        const { consumption_ids, items, ...batchFields } = batchData;
         const sanitizedData = { ...batchFields };
         const uuidFields = ['product_id', 'operator_id', 'supervisor_id', 'company_id', 'consumption_id'];
+
+        if (Array.isArray(items) && items.length > 0) {
+            sanitizedData.product_id = items[0].product_id || sanitizedData.product_id;
+            const itemsOutputTotal = items.reduce((sum: number, it: any) => sum + (Number(it.output_qty) || 0), 0);
+            if (itemsOutputTotal > 0) {
+                sanitizedData.extrusion_output_qty = itemsOutputTotal;
+            }
+        }
 
         uuidFields.forEach(field => {
             if (sanitizedData[field] === '') {
@@ -124,10 +163,38 @@ export const ProductionModel = {
             if (updateError) throw new Error(updateError.message);
         }
 
+        // 5. Update production_batch_items
+        if (items) {
+            await supabase.from('production_batch_items').delete().eq('batch_id', id);
+
+            if (Array.isArray(items) && items.length > 0) {
+                const itemsToInsert = items
+                    .filter((it: any) => it.product_id)
+                    .map((it: any) => ({
+                        batch_id: id,
+                        product_id: it.product_id,
+                        output_qty: Number(it.output_qty) || 0
+                    }));
+
+                if (itemsToInsert.length > 0) {
+                    const { error: batchItemsError } = await supabase
+                        .from('production_batch_items')
+                        .insert(itemsToInsert);
+
+                    if (batchItemsError) throw new Error(batchItemsError.message);
+                }
+            }
+        }
+
         return data;
     },
 
     deleteBatch: async (id: string) => {
+        // Delete batch items
+        await supabase
+            .from('production_batch_items')
+            .delete()
+            .eq('batch_id', id);
         // Cascade: delete all production_conversions and their items first
         const { data: conversions } = await supabase
             .from('production_conversions')
